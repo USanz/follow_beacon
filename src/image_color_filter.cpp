@@ -33,7 +33,7 @@ public:
       "/camera/image_raw", 10,
       std::bind(&ImageColorFilterNode::topic_callback, this, _1));
     image_filter_pub_ = this->create_publisher<sensor_msgs::msg::Image>(
-      "/sources/image_filter/image", 10);
+      "/image_filter/image", 10);
 
     this->declare_parameter("display_gui", true);
 

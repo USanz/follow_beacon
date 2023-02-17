@@ -83,14 +83,14 @@ public:
   OperatorImageNode()
   : Node("image_operator_node")
   {
-    raw_image_debug_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
-      "/camera/image_raw", 10,
-      std::bind(&OperatorImageNode::raw_img_callback, this, _1));
     filtered_image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
-      "/sources/image_filter/image", 10,
+      "/image_filter/image", 10,
       std::bind(&OperatorImageNode::topic_callback, this, _1));
     centroid_pub_ = this->create_publisher<std_msgs::msg::Float32MultiArray>(
       "/centroid/rel_pos", 10);
+    raw_image_debug_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
+      "/camera/image_raw", 10,
+      std::bind(&OperatorImageNode::raw_img_callback, this, _1));
     image_debug_pub_ = this->create_publisher<sensor_msgs::msg::Image>(
       "/debug/image/pixel_pos", 10);
 
