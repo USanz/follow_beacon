@@ -54,6 +54,14 @@ public:
     //filter the image:
     cv::inRange(hsv_img_, cv::Scalar(hl, sl, vl), cv::Scalar(hh, sh, vh), filtered_img_);
     
+    //this blur works fine with salt-and-peper noise:
+    cv::medianBlur(filtered_img_, filtered_img_, 7);
+    
+    // TODO: test this noise reduction function better:
+    // (at first sight it seems that it's not reducing the noise)
+    //cv::fastNlMeansDenoising(filtered_img_, filtered_img_, 30, 7, 21);
+    //threshold(filtered_img_, filtered_img_, 128, 255, cv::THRESH_BINARY);
+    
     //publish the image:
     sensor_msgs::msg::Image::SharedPtr filtered_img_msg =
         cv_bridge::CvImage(std_msgs::msg::Header(), "mono8", filtered_img_)
@@ -90,7 +98,8 @@ int main(int argc, char **argv)
   auto node = std::make_shared<ImageColorFilterNode>();
 
   std::string windowName = "hsv image filter";
-  int hh = 70, hl = 30, sh = 255, sl = 220, vh = 205, vl = 75;
+  //int hh = 70, hl = 30, sh = 255, sl = 220, vh = 205, vl = 75; //for the green on the simulator
+  int hh = 124, hl = 94, sh = 191, sl = 118, vh = 92, vl = 59; //for my dark blue umbrela
   if (node->use_gui()) {
     cv::namedWindow(windowName, cv::WINDOW_AUTOSIZE);
     cv::createTrackbar("hh", windowName, &hh, 255);
@@ -106,8 +115,6 @@ int main(int argc, char **argv)
   {
     rclcpp::spin_some(node);
 
-    //the resize of the window doesnt work at all so i resized the image:
-    //cv::resizeWindow(windowName, 500, 300);
     node->set_filter(hh, hl, sh, sl, vh, vl);
     RCLCPP_INFO(node->get_logger(), " applying filter: [%d, %d, %d, %d, %d, %d\n]", hh, hl, sh, sl, vh, vl);
 

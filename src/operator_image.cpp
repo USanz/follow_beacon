@@ -30,6 +30,8 @@
 
 #define IMAGE_RSZ_WIDTH  640
 #define IMAGE_RSZ_HEIGHT 320
+#define MAX_RAD 25
+#define MIN_RAD 5
 
 
 using namespace std::chrono_literals;
@@ -68,7 +70,9 @@ private:
     cv_ptr = cv_bridge::toCvCopy(msg, msg->encoding);
 
     cv::resize(cv_ptr->image, debug_img, cv::Size(IMAGE_RSZ_WIDTH, IMAGE_RSZ_HEIGHT), cv::INTER_LINEAR);
-    cv::circle(debug_img, centroid_pixel_, (int) (70.0 * pix_per_), cv::Scalar(0, 0, 255), -1);
+    int radius = (int) (250.0 * pix_per_); //70 for the simulation because green were bigger and noiseless
+    radius = std::max(std::min(radius, MAX_RAD), MIN_RAD);
+    cv::circle(debug_img, centroid_pixel_, radius, cv::Scalar(0, 0, 255), -1);
     
     img_msg = cv_bridge::CvImage(
       std_msgs::msg::Header(), "bgr8", debug_img).toImageMsg();
