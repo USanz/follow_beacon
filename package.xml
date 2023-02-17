@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>follow_beacon</name>
+  <version>0.0.1</version>
+  <description>
+    This packages intends to make a hybrid behaviour between ROS2 tipical DDS
+    pub/sub and Zenoh-flow (instead of using the tipical DDS ROS2 protocol).
+    With this hybrid behaviour the goal is to make the robot to follow a movable
+    beacon, that can be carried out by a person.
+  </description>
+  <maintainer email="unaisanzc@gmail.com">USanz</maintainer>
+  <license>Apache License 2.0</license>
+  <author email="unaisanzc@gmail.com">USanz</author>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>OpenCV</depend>
+  <depend>cv_bridge</depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+    <gazebo_ros gazebo_model_path="${prefix}/models"/>
+  </export>
+</package>
