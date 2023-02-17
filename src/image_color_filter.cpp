@@ -18,6 +18,10 @@
 #include <opencv2/highgui/highgui.hpp>
 
 
+#define IMAGE_RSZ_WIDTH  640
+#define IMAGE_RSZ_HEIGHT 320
+
+
 using namespace std::chrono_literals;
 using std::placeholders::_1;
 
@@ -37,18 +41,12 @@ public:
 
     this->declare_parameter("display_gui", true);
 
-    hsv_img_ = cv::Mat::zeros(1080, 1920, CV_8UC3);
-    filtered_img_ = cv::Mat::zeros(1080, 1920, CV_8UC1);
+    hsv_img_ = cv::Mat::zeros(IMAGE_RSZ_HEIGHT, IMAGE_RSZ_WIDTH, CV_8UC3);
+    filtered_img_ = cv::Mat::zeros(IMAGE_RSZ_HEIGHT, IMAGE_RSZ_WIDTH, CV_8UC1);
     disp_gui_param_ = this->get_parameter("display_gui");
   }
 
   cv::Mat get_filtered_img() { return filtered_img_; }
-
-  cv::Mat get_filterd_img_resized(int width, int height) {
-    cv::Mat rsz_img;
-    cv::resize(filtered_img_, rsz_img, cv::Size(width, height), cv::INTER_LINEAR);
-    return rsz_img;
-  }
 
   bool use_gui() { return disp_gui_param_.as_bool(); }
 
@@ -66,11 +64,13 @@ public:
 private:
   void topic_callback(const sensor_msgs::msg::Image::SharedPtr msg) const
   {
+    cv_bridge::CvImagePtr cv_ptr = cv_bridge::toCvCopy(msg, msg->encoding);
+    cv::Mat rsz_img;
+
     //RCLCPP_INFO(this->get_logger(), "msg received, filtering image");
     
-    cv_bridge::CvImagePtr cv_ptr;
-    cv_ptr = cv_bridge::toCvCopy(msg, msg->encoding);
-    cv::cvtColor(cv_ptr->image, hsv_img_, CV_BGR2HSV); //changing from color space.
+    cv::resize(cv_ptr->image, rsz_img, cv::Size(IMAGE_RSZ_WIDTH, IMAGE_RSZ_HEIGHT), cv::INTER_LINEAR);
+    cv::cvtColor(rsz_img, hsv_img_, CV_BGR2HSV); //changing color space.
   }
 
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_filter_pub_;
@@ -112,8 +112,7 @@ int main(int argc, char **argv)
     RCLCPP_INFO(node->get_logger(), " applying filter: [%d, %d, %d, %d, %d, %d\n]", hh, hl, sh, sl, vh, vl);
 
     if (node->use_gui()) {
-      //cv::imshow(windowName, node->get_filtered_img());
-      cv::imshow(windowName, node->get_filterd_img_resized(1920/3, 1080/3));
+      cv::imshow(windowName, node->get_filtered_img());
       cv::waitKey(10);
     }
 
