@@ -1,0 +1,28 @@
+camera_image_pub_node:
+  ros__parameters:
+    img_resize_width: 640
+    img_resize_height: 320
+    cam_num: 0   # Put here a 0 if you only have one camera, put a 2 if you want your second cam
+
+image_color_filter_node:
+  ros__parameters:
+    img_resize_width: 640
+    img_resize_height: 320 #these 2 params should match the camera_image_pub_node params.
+    display_gui: True
+    filter_vals: [124, 94, 191, 118, 92, 59]
+
+image_operator_node:
+  ros__parameters:
+    debug_circle_min_radius: 3
+    debug_circle_max_radius: 25
+    debug_circle_scale_radius: 500.0  #70 for the simulation because greens were bigger and noiseless
+    debug_circle_color: [255, 0, 255]   # GBR
+
+#node_2:
+#  ros__parameters:
+#    int_number: 27
+#    float_param: 45.2
+#
+#node_3:
+#  ros__parameters:
+#    int_number: 45

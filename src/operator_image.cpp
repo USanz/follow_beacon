@@ -28,11 +28,6 @@
 #include <cv_bridge/cv_bridge.h>
 
 
-#define IMAGE_RSZ_WIDTH  640
-#define IMAGE_RSZ_HEIGHT 320
-#define MAX_RAD 25
-#define MIN_RAD 5
-
 
 using namespace std::chrono_literals;
 using std::placeholders::_1;
@@ -56,26 +51,40 @@ public:
     image_debug_pub_ = this->create_publisher<sensor_msgs::msg::Image>(
       "/debug/image/pixel_pos", 10);
 
+    this->declare_parameter("debug_circle_min_radius");
+    this->declare_parameter("debug_circle_max_radius");
+    this->declare_parameter("debug_circle_scale_radius");
+    this->declare_parameter("debug_circle_color");
+
+    rclcpp::Parameter debug_circle_min_rad_param = this->get_parameter("debug_circle_min_radius");
+    rclcpp::Parameter debug_circle_max_rad_param = this->get_parameter("debug_circle_max_radius");
+    rclcpp::Parameter debug_circle_scale_rad_param = this->get_parameter("debug_circle_scale_radius");
+    rclcpp::Parameter debug_circle_color_param = this->get_parameter("debug_circle_color");
+
+    debug_circle_min_rad_ = debug_circle_min_rad_param.as_int();
+    debug_circle_max_rad_ = debug_circle_max_rad_param.as_int();
+    debug_circle_scale_rad_ = debug_circle_scale_rad_param.as_double();
+    std::vector<long int> color_vec = debug_circle_color_param.as_integer_array();
+    debug_circle_color_ = cv::Scalar(color_vec[0], color_vec[1], color_vec[2]);
+
     centroid_pixel_ = cv::Point2i(-1, -1);
     pix_per_ = 0.0;
   }
 
 private:
-  void raw_img_callback(const sensor_msgs::msg::Image::SharedPtr msg) const
+  void raw_img_callback(sensor_msgs::msg::Image::SharedPtr msg) const
   {
     cv_bridge::CvImagePtr cv_ptr;
     sensor_msgs::msg::Image::SharedPtr img_msg;
-    cv::Mat debug_img;
 
     cv_ptr = cv_bridge::toCvCopy(msg, msg->encoding);
 
-    cv::resize(cv_ptr->image, debug_img, cv::Size(IMAGE_RSZ_WIDTH, IMAGE_RSZ_HEIGHT), cv::INTER_LINEAR);
-    int radius = (int) (250.0 * pix_per_); //70 for the simulation because green were bigger and noiseless
-    radius = std::max(std::min(radius, MAX_RAD), MIN_RAD);
-    cv::circle(debug_img, centroid_pixel_, radius, cv::Scalar(0, 0, 255), -1);
+    int radius = (int) (debug_circle_scale_rad_ * pix_per_);
+    radius = std::max(std::min(radius, debug_circle_max_rad_), debug_circle_min_rad_);
+    cv::circle(cv_ptr->image, centroid_pixel_, radius, debug_circle_color_, -1);
     
     img_msg = cv_bridge::CvImage(
-      std_msgs::msg::Header(), "bgr8", debug_img).toImageMsg();
+      std_msgs::msg::Header(), "bgr8", cv_ptr->image).toImageMsg();
 
     image_debug_pub_->publish(*img_msg.get());
   }
@@ -126,6 +135,11 @@ private:
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_debug_pub_;
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr filtered_image_sub_;
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr raw_image_debug_sub_;
+
+  int debug_circle_min_rad_;
+  int debug_circle_max_rad_;
+  double debug_circle_scale_rad_;
+  cv::Scalar debug_circle_color_;
 
   cv::Point2i centroid_pixel_;
   float pix_per_;

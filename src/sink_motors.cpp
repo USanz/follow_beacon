@@ -57,6 +57,7 @@ private:
     if (fabs(error_z_dist) < goal_z_threshold) {
       vel_msg.linear.x = 0.0;
     }
+    vel_msg.linear.x=0.0; ///SECURITY LOCK, COMMENT THIS LINE TO LET THE ROBOT MOVE.
     vel_msg.linear.y = 0.0;
     vel_msg.linear.z = 0.0;
 
