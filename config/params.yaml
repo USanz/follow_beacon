@@ -2,14 +2,16 @@ camera_image_pub_node:
   ros__parameters:
     img_resize_width: 640
     img_resize_height: 320
-    cam_num: 0   # Put here a 0 if you only have one camera, put a 2 if you want your second cam
+    cam_num: 2   # Put here a 0 if you only have one camera, put a 2 if you want your second cam
 
 image_color_filter_node:
   ros__parameters:
     img_resize_width: 640
     img_resize_height: 320 #these 2 params should match the camera_image_pub_node params.
     display_gui: True
-    filter_vals: [124, 94, 191, 118, 92, 59]
+    #filter_vals: [70, 30, 255, 220, 205, 75] # for the green of the simulator
+    #filter_vals: [124, 94, 191, 118, 92, 59] # for the blue umbrella.
+    filter_vals: [152, 119, 155, 69, 191, 68] # for the ECLA pink/magenta card.
 
 image_operator_node:
   ros__parameters:
@@ -18,11 +20,13 @@ image_operator_node:
     debug_circle_scale_radius: 500.0  #70 for the simulation because greens were bigger and noiseless
     debug_circle_color: [255, 0, 255]   # GBR
 
-#node_2:
-#  ros__parameters:
-#    int_number: 27
-#    float_param: 45.2
-#
-#node_3:
-#  ros__parameters:
-#    int_number: 45
+sink_motors_node:
+  ros__parameters:
+    only_rotation_mode: False
+    only_display_mode: False
+    goal_x_dist: 0.0    #Between the range [-1.0, 1.0]
+    goal_pix_per: 0.1   #Between the range [-1.0, 1.0]
+    goal_x_threshold: 0.1          #Between the range [-1.0, 1.0]
+    goal_pix_per_threshold: 0.03   #Between the range [-1.0, 1.0]
+    kp_w: 0.5   #Proportional controller constants for v and w
+    kp_v: 1.0   #kp_v is proportional to the object size.

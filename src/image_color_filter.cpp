@@ -12,7 +12,7 @@
 // for CV_8UC3
 #include <opencv2/core/hal/interface.h>
 // for compressing the image
-#include <image_transport/image_transport.hpp>
+//#include <image_transport/image_transport.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/highgui/highgui.hpp>
@@ -67,7 +67,7 @@ public:
     //display the parameters:
     filter_param_ = this->get_parameter("filter_vals");
     std::vector<long int> arr = filter_param_.as_integer_array();
-    RCLCPP_INFO(this->get_logger(), "params: [%d, %d, %d, %d, %d, %d]", arr[0], arr[1], arr[2], arr[3], arr[4], arr[5]);
+    //RCLCPP_INFO(this->get_logger(), "params: [%d, %d, %d, %d, %d, %d]", arr[0], arr[1], arr[2], arr[3], arr[4], arr[5]);
 
     //filter the image:
     cv::inRange(hsv_img_, cv::Scalar(hl, sl, vl), cv::Scalar(hh, sh, vh), filtered_img_);
@@ -87,6 +87,8 @@ public:
     image_filter_pub_->publish(*filtered_img_msg.get());
   }
 
+  rclcpp::Parameter filter_param_;
+
 private:
   void topic_callback(const sensor_msgs::msg::Image::SharedPtr msg) const
   {
@@ -102,7 +104,6 @@ private:
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_filter_pub_;
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr camera_sub_;
   rclcpp::Parameter disp_gui_param_;
-  rclcpp::Parameter filter_param_;
 
   int img_resize_width_;
   int img_resize_height_;
@@ -120,9 +121,13 @@ int main(int argc, char **argv)
   auto node = std::make_shared<ImageColorFilterNode>();
 
   std::string windowName = "hsv image filter";
-  //int hh = 70, hl = 30, sh = 255, sl = 220, vh = 205, vl = 75; //for the green on the simulator
-  int hh = 124, hl = 94, sh = 191, sl = 118, vh = 92, vl = 59; //for my dark blue umbrela
-    
+  
+  
+  std::vector<long int> filter_vals = node->filter_param_.as_integer_array();
+  int hh = filter_vals[0], hl = filter_vals[1],
+      sh = filter_vals[2], sl = filter_vals[3],
+      vh = filter_vals[4], vl = filter_vals[5];
+
   if (node->use_gui()) {
     cv::namedWindow(windowName, cv::WINDOW_AUTOSIZE);
     cv::createTrackbar("hh", windowName, &hh, 255);

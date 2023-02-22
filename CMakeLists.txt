@@ -53,6 +53,7 @@ set(EXEC_SOURCE_NAME "source_image_filter")
 set(EXEC_OP_NAME "operator_image")
 set(EXEC_SINK_NAME "sink_motors")
 set(EXEC_CAM_PUBLISHER_NAME "camera_image_pub")
+set(EXEC_QR_CODE_DETECTOR_NAME "qr_code_detector")
 
 set(dependencies
   "std_msgs"
@@ -101,6 +102,14 @@ target_include_directories(${EXEC_CAM_PUBLISHER_NAME} PUBLIC
 target_link_libraries(${EXEC_CAM_PUBLISHER_NAME}
   ${OpenCV_LIBRARIES})
 
+add_executable(${EXEC_QR_CODE_DETECTOR_NAME} src/qr_code_detector.cpp)
+ament_target_dependencies(${EXEC_QR_CODE_DETECTOR_NAME} ${dependencies})
+target_include_directories(${EXEC_QR_CODE_DETECTOR_NAME} PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+target_link_libraries(${EXEC_QR_CODE_DETECTOR_NAME}
+  ${OpenCV_LIBRARIES})
+
 
 
 install(TARGETS
@@ -109,6 +118,7 @@ install(TARGETS
   ${EXEC_OP_NAME}
   ${EXEC_SINK_NAME}
   ${EXEC_CAM_PUBLISHER_NAME}
+  ${EXEC_QR_CODE_DETECTOR_NAME}
   DESTINATION lib/${PROJECT_NAME}
 )
 
