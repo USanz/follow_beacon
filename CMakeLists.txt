@@ -20,7 +20,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
-find_package(geometry_msgs REQUIRED)
+#find_package(geometry_msgs REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(cv_bridge REQUIRED)
 # uncomment the following section in order to fill in
@@ -48,50 +48,50 @@ include_directories(
 )
 
 
-set(EXEC_COLOR_FILTER_NAME "image_color_filter")
-set(EXEC_SOURCE_NAME "source_image_filter")
-set(EXEC_OP_NAME "operator_image")
-set(EXEC_SINK_NAME "sink_motors")
+#set(EXEC_COLOR_FILTER_NAME "image_color_filter")
+#set(EXEC_SOURCE_NAME "source_image_filter")
+#set(EXEC_OP_NAME "operator_image")
+#set(EXEC_SINK_NAME "sink_motors")
 set(EXEC_CAM_PUBLISHER_NAME "camera_image_pub")
 
 set(dependencies
   "std_msgs"
   "sensor_msgs"
-  "geometry_msgs"
+#  "geometry_msgs"
   "rclcpp"
   "OpenCV"
   "cv_bridge"
 )
 
-add_executable(${EXEC_COLOR_FILTER_NAME} src/image_color_filter.cpp)
-ament_target_dependencies(${EXEC_COLOR_FILTER_NAME} ${dependencies})
-target_include_directories(${EXEC_COLOR_FILTER_NAME} PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>)
-target_link_libraries(${EXEC_COLOR_FILTER_NAME}
-  ${OpenCV_LIBRARIES})
-
-add_executable(${EXEC_SOURCE_NAME} src/source_image_filter.cpp)
-ament_target_dependencies(${EXEC_SOURCE_NAME} ${dependencies})
-target_include_directories(${EXEC_SOURCE_NAME} PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>)
-target_link_libraries(${EXEC_SOURCE_NAME}
-  ${OpenCV_LIBRARIES})
-
-add_executable(${EXEC_OP_NAME} src/operator_image.cpp)
-ament_target_dependencies(${EXEC_OP_NAME} ${dependencies})
-target_include_directories(${EXEC_OP_NAME} PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>)
-target_link_libraries(${EXEC_OP_NAME}
-  ${OpenCV_LIBRARIES})
-
-add_executable(${EXEC_SINK_NAME} src/sink_motors.cpp)
-ament_target_dependencies(${EXEC_SINK_NAME} ${dependencies})
-target_include_directories(${EXEC_SINK_NAME} PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>)
+#add_executable(${EXEC_COLOR_FILTER_NAME} src/image_color_filter.cpp)
+#ament_target_dependencies(${EXEC_COLOR_FILTER_NAME} ${dependencies})
+#target_include_directories(${EXEC_COLOR_FILTER_NAME} PUBLIC
+#  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+#  $<INSTALL_INTERFACE:include>)
+#target_link_libraries(${EXEC_COLOR_FILTER_NAME}
+#  ${OpenCV_LIBRARIES})
+#
+#add_executable(${EXEC_SOURCE_NAME} src/source_image_filter.cpp)
+#ament_target_dependencies(${EXEC_SOURCE_NAME} ${dependencies})
+#target_include_directories(${EXEC_SOURCE_NAME} PUBLIC
+#  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+#  $<INSTALL_INTERFACE:include>)
+#target_link_libraries(${EXEC_SOURCE_NAME}
+#  ${OpenCV_LIBRARIES})
+#
+#add_executable(${EXEC_OP_NAME} src/operator_image.cpp)
+#ament_target_dependencies(${EXEC_OP_NAME} ${dependencies})
+#target_include_directories(${EXEC_OP_NAME} PUBLIC
+#  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+#  $<INSTALL_INTERFACE:include>)
+#target_link_libraries(${EXEC_OP_NAME}
+#  ${OpenCV_LIBRARIES})
+#
+#add_executable(${EXEC_SINK_NAME} src/sink_motors.cpp)
+#ament_target_dependencies(${EXEC_SINK_NAME} ${dependencies})
+#target_include_directories(${EXEC_SINK_NAME} PUBLIC
+#  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+#  $<INSTALL_INTERFACE:include>)
 
 add_executable(${EXEC_CAM_PUBLISHER_NAME} src/camera_image_pub.cpp)
 ament_target_dependencies(${EXEC_CAM_PUBLISHER_NAME} ${dependencies})
@@ -104,10 +104,10 @@ target_link_libraries(${EXEC_CAM_PUBLISHER_NAME}
 
 
 install(TARGETS
-  ${EXEC_COLOR_FILTER_NAME}
-  ${EXEC_SOURCE_NAME}
-  ${EXEC_OP_NAME}
-  ${EXEC_SINK_NAME}
+#  ${EXEC_COLOR_FILTER_NAME}
+#  ${EXEC_SOURCE_NAME}
+#  ${EXEC_OP_NAME}
+#  ${EXEC_SINK_NAME}
   ${EXEC_CAM_PUBLISHER_NAME}
   DESTINATION lib/${PROJECT_NAME}
 )

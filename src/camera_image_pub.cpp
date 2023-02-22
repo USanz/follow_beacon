@@ -7,9 +7,6 @@
 #include <opencv2/opencv.hpp>
 #include <cv_bridge/cv_bridge.h>
 
-#define IMAGE_RSZ_WIDTH  640
-#define IMAGE_RSZ_HEIGHT 320
-
 
 using namespace std::chrono_literals;
 using std::placeholders::_1;
@@ -25,8 +22,8 @@ public:
       "/camera/image_raw", 10);
     
     this->declare_parameter("cam_num", 0);
-    this->declare_parameter("img_resize_width");
-    this->declare_parameter("img_resize_height");
+    this->declare_parameter("img_resize_width", 640);
+    this->declare_parameter("img_resize_height", 320);
 
     rclcpp::Parameter img_resize_width_param = this->get_parameter("img_resize_width");
     rclcpp::Parameter img_resize_height_param = this->get_parameter("img_resize_height");
