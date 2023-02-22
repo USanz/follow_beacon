@@ -47,6 +47,8 @@ public:
     cv::Mat rsz_img;
     cv::resize(cam_frame_, rsz_img, cv::Size(img_resize_width_, img_resize_height_), cv::INTER_LINEAR);
     
+    RCLCPP_INFO(this->get_logger(), "img msg sent");
+
     sensor_msgs::msg::Image::SharedPtr cam_img_msg = cv_bridge::CvImage(
       std_msgs::msg::Header(), "bgr8", rsz_img).toImageMsg();
     cam_img_pub_->publish(*cam_img_msg.get());
