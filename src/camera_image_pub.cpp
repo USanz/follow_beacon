@@ -71,20 +71,6 @@ private:
 
 int main(int argc, char * argv[])
 {
-  /*
-  rclcpp::init(argc, argv);
-  auto node = std::make_shared<CameraImagePubNode>();
-  //TODO: change it to be a publisher with a timer to publish at 50fps.
-  rclcpp::Rate loop_rate(10);
-  while (rclcpp::ok())
-  {
-    rclcpp::spin_some(node);
-    node->publish_img();
-  }
-  rclcpp::shutdown();
-  return 0;
-  */
-
   rclcpp::init(argc, argv);
   rclcpp::spin(std::make_shared<CameraImagePubNode>());
   rclcpp::shutdown();
