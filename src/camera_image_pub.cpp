@@ -20,7 +20,9 @@ public:
   {
     cam_img_pub_ = this->create_publisher<sensor_msgs::msg::Image>(
       "/camera/image_raw", 10);
-    
+    timer_ = this->create_wall_timer(
+      30ms, std::bind(&CameraImagePubNode::timer_callback, this));
+
     this->declare_parameter("cam_num", 0);
     this->declare_parameter("img_resize_width", 640);
     this->declare_parameter("img_resize_height", 320);
@@ -40,7 +42,7 @@ public:
     }
   }
 
-  void publish_img()
+  void timer_callback()
   {     
     // capture the next frame from the webcam and publish it
     camera_ >> cam_frame_;
@@ -57,6 +59,7 @@ public:
 private:
 
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr cam_img_pub_;
+  rclcpp::TimerBase::SharedPtr timer_;
   rclcpp::Parameter cam_num_param_;
 
   int img_resize_width_;
@@ -68,14 +71,22 @@ private:
 
 int main(int argc, char * argv[])
 {
+  /*
   rclcpp::init(argc, argv);
   auto node = std::make_shared<CameraImagePubNode>();
+  //TODO: change it to be a publisher with a timer to publish at 50fps.
   rclcpp::Rate loop_rate(10);
   while (rclcpp::ok())
   {
     rclcpp::spin_some(node);
     node->publish_img();
   }
+  rclcpp::shutdown();
+  return 0;
+  */
+
+  rclcpp::init(argc, argv);
+  rclcpp::spin(std::make_shared<CameraImagePubNode>());
   rclcpp::shutdown();
   return 0;
 }
