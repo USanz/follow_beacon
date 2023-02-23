@@ -21,7 +21,7 @@ public:
     cam_img_pub_ = this->create_publisher<sensor_msgs::msg::Image>(
       "/camera/image_raw", 10);
     timer_ = this->create_wall_timer(
-      30ms, std::bind(&CameraImagePubNode::timer_callback, this));
+      200ms, std::bind(&CameraImagePubNode::timer_callback, this));
 
     this->declare_parameter("cam_num", 0);
     this->declare_parameter("img_resize_width", 640);
