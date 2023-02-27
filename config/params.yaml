@@ -2,7 +2,8 @@ camera_image_pub_node:
   ros__parameters:
     img_resize_width: 640
     img_resize_height: 320
-    cam_num: 0   # Put here a 0 if you only have one camera, put a 2 if you want your second cam
+    cam_num: 0   # Put here a 0 if you only have one camera, put a 2 if you want your second cam.
+    fps_pub: 15
 
 image_color_filter_node:
   ros__parameters:
@@ -22,11 +23,11 @@ image_operator_node:
 
 sink_motors_node:
   ros__parameters:
-    only_rotation_mode: False
-    only_display_mode: False
+    only_rotation_mode: True
+    only_display_mode: True
     goal_x_dist: 0.0    #Between the range [-1.0, 1.0]
-    goal_pix_per: 0.1   #Between the range [-1.0, 1.0]
+    goal_pix_per: 6.0   #Between the range [-1.0, 1.0]
     goal_x_threshold: 0.12         #Between the range [-1.0, 1.0]
     goal_pix_per_threshold: 0.05   #Between the range [-1.0, 1.0]
     kp_w: 0.5   #Proportional controller constants for v and w
-    kp_v: 1.0   #kp_v is proportional to the object size.
+    kp_v: 0.5   #kp_v is proportional to the object size.
