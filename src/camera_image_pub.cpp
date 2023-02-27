@@ -54,11 +54,11 @@ public:
   {     
     // capture the next frame from the webcam and publish it
     camera_ >> cam_frame_;
-    cv::Mat rsz_img;
+    //cv::Mat rsz_img;
     //cv::resize(cam_frame_, rsz_img, cv::Size(img_resize_width_, img_resize_height_), cv::INTER_LINEAR);
     
     sensor_msgs::msg::Image::SharedPtr cam_img_msg = cv_bridge::CvImage(
-      std_msgs::msg::Header(), "bgr8", rsz_img).toImageMsg();
+      std_msgs::msg::Header(), "bgr8", cam_frame_).toImageMsg();
     cam_img_pub_->publish(*cam_img_msg.get());
   }
 
