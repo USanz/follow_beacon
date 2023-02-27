@@ -21,13 +21,21 @@ image_operator_node:
     debug_circle_scale_radius: 500.0  #70 for the simulation because greens were bigger and noiseless
     debug_circle_color: [255, 0, 255]   # GBR
 
+qr_code_detector_node:
+  ros__parameters:
+    side_threshold: 5.0
+    display_gui: True
+
 sink_motors_node:
   ros__parameters:
-    only_rotation_mode: True
-    only_display_mode: True
-    goal_x_dist: 0.0    #Between the range [-1.0, 1.0]
-    goal_pix_per: 6.0   #Between the range [-1.0, 1.0]
+    only_rotation_mode: False
+    only_display_mode: False
+    goal_x_dist: 0.0    #Between the range [-1.0, 1.0] (pixels)
+    goal_pix_diag: 15.0   #Between the range [-1.0, 1.0] (pixels)
     goal_x_threshold: 0.12         #Between the range [-1.0, 1.0]
-    goal_pix_per_threshold: 0.05   #Between the range [-1.0, 1.0]
-    kp_w: 0.5   #Proportional controller constants for v and w
-    kp_v: 0.5   #kp_v is proportional to the object size.
+    goal_pix_diag_threshold: 0.05   #Between the range [-1.0, 1.0]
+    kp_w: 0.35   #Proportional controller constants for v and w
+    kp_v: 0.02   #kp_v is proportional to the object size.
+    target_lost_timeout: 3000 #ms for the robot to start searching the target when is not seen.
+
+
