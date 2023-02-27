@@ -7,12 +7,6 @@
 #include <opencv2/opencv.hpp>
 #include <cv_bridge/cv_bridge.h>
 
-#define IMAGE_RSZ_WIDTH  640
-#define IMAGE_RSZ_HEIGHT 320
-
-
-//using namespace std::chrono_literals;
-using std::placeholders::_1;
 
 
 class CameraImagePubNode : public rclcpp::Node
@@ -61,7 +55,7 @@ public:
     // capture the next frame from the webcam and publish it
     camera_ >> cam_frame_;
     cv::Mat rsz_img;
-    cv::resize(cam_frame_, rsz_img, cv::Size(img_resize_width_, img_resize_height_), cv::INTER_LINEAR);
+    //cv::resize(cam_frame_, rsz_img, cv::Size(img_resize_width_, img_resize_height_), cv::INTER_LINEAR);
     
     sensor_msgs::msg::Image::SharedPtr cam_img_msg = cv_bridge::CvImage(
       std_msgs::msg::Header(), "bgr8", rsz_img).toImageMsg();
@@ -84,18 +78,6 @@ private:
 int main(int argc, char * argv[])
 {
   rclcpp::init(argc, argv);
-  
-  /*
-  auto node = std::make_shared<CameraImagePubNode>();
-  rclcpp::Rate loop_rate(10);
-
-  while (rclcpp::ok())
-  {
-    rclcpp::spin_some(node);
-    node->publish_img();
-  }
-  */
-
   rclcpp::spin(std::make_shared<CameraImagePubNode>());
   rclcpp::shutdown();
   return 0;
