@@ -3,7 +3,6 @@
 #include <memory>
 
 #include "rclcpp/rclcpp.hpp"
-//#include "sensor_msgs/msg/image.hpp"
 #include "std_msgs/msg/float32_multi_array.hpp"
 
 #include <math.h>
@@ -18,15 +17,12 @@
 // for CV_8UC3
 #include <opencv2/core/hal/interface.h>
 // for compressing the image
-#include <image_transport/image_transport.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/highgui/highgui.hpp>
 
 #include <opencv2/objdetect.hpp>
 #include <opencv2/imgcodecs.hpp>
-//#include <opencv2/highgui/highgui.hpp>
-//#include <opencv2/imgproc/imgproc.hpp>
 #include <iostream>
 
 
@@ -39,8 +35,8 @@ public:
   QRDetectorNode()
   : Node("qr_code_detector_node")
   {
-    camera_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
-      "/camera/image_raw", 10,
+    camera_sub_ = this->create_subscription<sensor_msgs::msg::CompressedImage>(
+      "/camera/image_compressed", 10,
       std::bind(&QRDetectorNode::topic_callback, this, _1));
     centroid_pub_ = this->create_publisher<std_msgs::msg::Float32MultiArray>(
       "/centroid/rel_pos", 10);
@@ -122,12 +118,13 @@ private:
     return size;
   }
 
-  void topic_callback(sensor_msgs::msg::Image::SharedPtr msg)
+  void topic_callback(sensor_msgs::msg::CompressedImage::SharedPtr msg)
   {
     cv_bridge::CvImagePtr cv_ptr;
-    cv_ptr = cv_bridge::toCvCopy(msg, msg->encoding);
-
-    //cv::resize(cv_ptr->image, input_image_, cv::Size(640, 320), cv::INTER_LINEAR);
+    //The empty string means that the returned image has the same encoding as the
+    //source (we have to use this because in a sensor_msgs::msg::CompressedImage
+    //we don have the msg->encoding attribute):
+    cv_ptr = cv_bridge::toCvCopy(msg, ""); //this actually works as a decoding function because it decompress the image msg.
     
     //std::cout << "OpenCV version : " << CV_VERSION << std::endl; //version 4.7.0-dev
     //RCLCPP_INFO(this->get_logger(), "img received");
@@ -179,7 +176,7 @@ private:
   }
 
 
-  rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr camera_sub_;
+  rclcpp::Subscription<sensor_msgs::msg::CompressedImage>::SharedPtr camera_sub_;
   rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr centroid_pub_;
   cv::QRCodeDetector qrDecoder_;
   cv::Mat bbox_, rectifiedImage_;

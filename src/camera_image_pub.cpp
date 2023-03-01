@@ -2,7 +2,6 @@
 #include <memory>
 
 #include "rclcpp/rclcpp.hpp"
-#include "sensor_msgs/msg/image.hpp"
 
 #include <opencv2/opencv.hpp>
 #include <cv_bridge/cv_bridge.h>
@@ -18,8 +17,8 @@ public:
   //memory when the nodes are running in the same process:
   //: Node("camera_image_pub_node", rclcpp::NodeOptions().use_intra_process_comms(false))
   {
-    cam_img_pub_ = this->create_publisher<sensor_msgs::msg::Image>(
-      "/camera/image_raw", 10);
+    cam_img_pub_ = this->create_publisher<sensor_msgs::msg::CompressedImage>(
+      "/camera/image_compressed", 10);
 
     this->declare_parameter("cam_num", 0);
     this->declare_parameter("fps_pub", 15);
@@ -60,14 +59,19 @@ public:
     if (cam_frame_.rows > img_resize_height_ || cam_frame_.cols > img_resize_width_) {
       cv::resize(cam_frame_, cam_frame_, cv::Size(img_resize_width_, img_resize_height_), cv::INTER_LINEAR);
     }
-    sensor_msgs::msg::Image::SharedPtr cam_img_msg = cv_bridge::CvImage(
-      std_msgs::msg::Header(), "bgr8", cam_frame_).toImageMsg();
+    
+    sensor_msgs::msg::CompressedImage::SharedPtr cam_img_msg =
+      cv_bridge::CvImage(
+        std_msgs::msg::Header(),
+        "bgr8",
+        cam_frame_
+      ).toCompressedImageMsg(cv_bridge::Format::PNG);
     cam_img_pub_->publish(*cam_img_msg.get());
   }
 
 private:
 
-  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr cam_img_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::CompressedImage>::SharedPtr cam_img_pub_;
   rclcpp::TimerBase::SharedPtr timer_;
 
   int fps_pub_;
