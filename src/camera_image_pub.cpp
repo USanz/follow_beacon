@@ -14,6 +14,9 @@ class CameraImagePubNode : public rclcpp::Node
 public:
   CameraImagePubNode()
   : Node("camera_image_pub_node")
+  //This parameter is used to enable/disable internal communications using shared
+  //memory when the nodes are running in the same process:
+  //: Node("camera_image_pub_node", rclcpp::NodeOptions().use_intra_process_comms(false))
   {
     cam_img_pub_ = this->create_publisher<sensor_msgs::msg::Image>(
       "/camera/image_raw", 10);
@@ -54,9 +57,9 @@ public:
   {     
     // capture the next frame from the webcam and publish it
     camera_ >> cam_frame_;
-    //cv::Mat rsz_img;
-    //cv::resize(cam_frame_, rsz_img, cv::Size(img_resize_width_, img_resize_height_), cv::INTER_LINEAR);
-    
+    if (cam_frame_.rows > img_resize_height_ || cam_frame_.cols > img_resize_width_) {
+      cv::resize(cam_frame_, cam_frame_, cv::Size(img_resize_width_, img_resize_height_), cv::INTER_LINEAR);
+    }
     sensor_msgs::msg::Image::SharedPtr cam_img_msg = cv_bridge::CvImage(
       std_msgs::msg::Header(), "bgr8", cam_frame_).toImageMsg();
     cam_img_pub_->publish(*cam_img_msg.get());
