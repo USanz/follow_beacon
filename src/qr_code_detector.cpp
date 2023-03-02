@@ -142,6 +142,14 @@ private:
     centroid_per_msg.data = {0.0, 0.0, -1.0};
     bool qr_detected = qrDecoder_.detect(cv_ptr->image, bbox_);
     if (qr_detected) {
+      //This doesn't work neither:
+      /*
+      std::string qr_info = qrDecoder_.decode(cv_ptr->image, bbox_, qr_code_straight_);
+      if(qr_info.length() > 0) {
+        RCLCPP_INFO(this->get_logger(), "QR code information decoded: %s", qr_info.c_str());
+      }
+      */
+
       std::vector<int> centroid{0, 0};
       float size = get_centroid_and_size(bbox_, centroid);
 
@@ -183,7 +191,7 @@ private:
   
   float side_threshold_;
   bool display_gui_;
-  cv::Mat input_image_;
+  cv::Mat input_image_, qr_code_straight_;
 
 };
 
