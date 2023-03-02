@@ -1,3 +1,0 @@
-/home/usanz/zs_t3/t3_ws/src/follow_beacon/src/qr_tests/CMakeFiles/rebuild_cache.dir
-/home/usanz/zs_t3/t3_ws/src/follow_beacon/src/qr_tests/CMakeFiles/edit_cache.dir
-/home/usanz/zs_t3/t3_ws/src/follow_beacon/src/qr_tests/CMakeFiles/qrCodeOpencv.dir
