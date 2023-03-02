@@ -26,6 +26,11 @@ qr_code_detector_node:
     side_threshold: 5.0
     display_gui: True
 
+qr_code_detector_node_zbar:
+  ros__parameters:
+    side_threshold: 5.0
+    display_gui: True
+
 sink_motors_node:
   ros__parameters:
     only_rotation_mode: False
