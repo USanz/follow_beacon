@@ -4,7 +4,7 @@ camera_image_pub_node:
     img_resize_height: 480
     cam_num: 0   # Put here a 0 if you only have one camera, put a 2 if you want your second cam.
     fps_pub: 15
-    compression_format: "PNG" #Select one from: BMP, DIB, JPG, JPEG ,JPE, JP2, PNG, PBM, PGM, PPM, SR, RAS, TIFF or TIF.
+    compression_format: "JPG" #Select one from: BMP, DIB, JPG, JPEG ,JPE, JP2, PNG, PBM, PGM, PPM, SR, RAS, TIFF or TIF.
 
 image_color_filter_node:
   ros__parameters:

@@ -24,7 +24,7 @@ public:
     this->declare_parameter("fps_pub", 15);
     this->declare_parameter("img_resize_width");
     this->declare_parameter("img_resize_height");
-    this->declare_parameter("compression_format");
+    this->declare_parameter("compression_format", "JPG");
 
     rclcpp::Parameter cam_num_param = this->get_parameter("cam_num");
     rclcpp::Parameter fps_pub_param = this->get_parameter("fps_pub");
