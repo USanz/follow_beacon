@@ -178,7 +178,7 @@ private:
     centroid_pub_->publish(centroid_per_msg);
 
     if (display_gui_) {
-      cv::imshow("Result", cv_ptr->image);
+      cv::imshow("QR code detector (OpenCV)", cv_ptr->image);
       cv::waitKey(10);
     }
   }

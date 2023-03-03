@@ -28,8 +28,7 @@ qr_code_detector_node:
 
 qr_code_detector_node_zbar:
   ros__parameters:
-    side_threshold: 5.0
-    display_gui: True
+    qr_data_to_track: "https://github.com/USanz/follow_beacon"
 
 sink_motors_node:
   ros__parameters:

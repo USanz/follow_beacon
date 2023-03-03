@@ -36,6 +36,8 @@ typedef struct
   std::string type;
   std::string data;
   std::vector<cv::Point> location;
+  cv::Point centroid;
+  float diagonal_avg_size;
 } decodedObject;
 
 
@@ -43,7 +45,7 @@ class QRDetectorNode : public rclcpp::Node
 {
 public:
   QRDetectorNode()
-  : Node("qr_code_detector_node")
+  : Node("qr_code_detector_node_zbar")
   {
     camera_sub_ = this->create_subscription<sensor_msgs::msg::CompressedImage>(
       "/camera/image_compressed", 10,
@@ -51,91 +53,27 @@ public:
     centroid_pub_ = this->create_publisher<std_msgs::msg::Float32MultiArray>(
       "/centroid/rel_pos", 10);
 
-    this->declare_parameter("side_threshold", 5.0);
-    this->declare_parameter("display_gui", true);
+    this->declare_parameter("qr_data_to_track", "");
     
-    rclcpp::Parameter side_threshold_param_ = this->get_parameter("side_threshold");
-    rclcpp::Parameter display_gui_param_ = this->get_parameter("display_gui");
+    rclcpp::Parameter qr_data_to_track_param_ = this->get_parameter("qr_data_to_track");
     
-    side_threshold_ = side_threshold_param_.as_double();
-    display_gui_ = display_gui_param_.as_bool();
-
+    qr_data_to_track_ = qr_data_to_track_param_.as_string();
+    if(qr_data_to_track_ == "") {
+      RCLCPP_ERROR(this->get_logger(), "qr_data_to_track parameter not specified of void string given");
+    }
     qrDecoder_ = cv::QRCodeDetector();
   }
 
 private:
 
-  void draw_bbox(cv::Mat &im, cv::Mat &bbox)
-  {
-    int n = bbox.cols;
-    for(int i = 0 ; i < n; i++) {
-      cv::line(im,
-        cv::Point2i(bbox.at<float>(2*i), bbox.at<float>(2*i + 1)),
-        cv::Point2i(bbox.at<float>((2*i + 2) % (2*n)), bbox.at<float>((2*i + 3) % (2*n))),
-        cv::Scalar(255, 0, 0),
-        2);
-    }
-    //two opposite corners to see the rotation.
-    cv::circle(im,
-      cv::Point2i(bbox.at<float>(0), bbox.at<float>(1)),
-      5,
-      cv::Scalar(0, 0, 255),
-      -1);
-    cv::circle(im,
-      cv::Point2i(bbox.at<float>(4), bbox.at<float>(5)),
-      5,
-      cv::Scalar(0, 255, 0),
-      -1);
-  }
-
-  float get_centroid_and_size(cv::Mat &bbox, std::vector<int> &centroid) {
-    int n = bbox.cols;
-    int sum_x = 0;
-    int sum_y = 0;
-    for(int i = 0 ; i < n; i++) {
-      //one point and the next one:
-      int x = bbox.at<float>(2*i), y = bbox.at<float>(2*i + 1);
-      sum_x += x;
-      sum_y += y;
-    }
-
-    centroid[0] = sum_x / n;
-    centroid[1] = sum_y / n;
-    
-
-    //test if the bbox is valid (comparing the sides length ~= squared or romboid):
-    int x0 = bbox.at<float>(0), y0 = bbox.at<float>(1); // i = 0
-    int x2 = bbox.at<float>(4), y2 = bbox.at<float>(5); // i = 2
-    int x1 = bbox.at<float>(2), y1 = bbox.at<float>(3); // i = 1
-    int x3 = bbox.at<float>(6), y3 = bbox.at<float>(7); // i = 3
-    float dist01 = sqrt((abs(x1-x0)^2) + (abs(y1-y0)^2)); //distance from 0 to 1
-    float dist12 = sqrt((abs(x2-x1)^2) + (abs(y2-y1)^2)); //distance from 1 to 2
-    float dist23 = sqrt((abs(x3-x2)^2) + (abs(y3-y2)^2)); //distance from 2 to 3
-    float dist30 = sqrt((abs(x0-x3)^2) + (abs(y0-y3)^2)); //distance from 3 to 0
-    
-    bool is_valid = (
-      fabs(dist01 - dist12) < side_threshold_ &&
-      fabs(dist12 - dist23) < side_threshold_ &&
-      fabs(dist23 - dist30) < side_threshold_ &&
-      fabs(dist30 - dist01) < side_threshold_);
-
-    float size = -1.0;
-    if (is_valid) {
-      float diag02 = sqrt((abs(x2-x0)^2) + (abs(y2-y0)^2)); //diagonal from 0 to 2
-      float diag13 = sqrt((abs(x3-x1)^2) + (abs(y3-y1)^2)); //diagonal from 1 to 3
-      size = (diag02 + diag13) / 2.0; //average of the diagonals
-    }
-    return size;
-  }
-
-// Find and decode barcodes and QR codes
-  void decode(cv::Mat &im, std::vector<decodedObject> &decodedObjects)
+  void find_and_decode(cv::Mat &im, std::vector<decodedObject> &decodedObjects)
   {
     // Create zbar scanner and configure it to only detect QR codes:
     zbar::ImageScanner scanner;
-    scanner.set_config(zbar::ZBAR_NONE, zbar::ZBAR_CFG_ENABLE, 0); //first we deactivate all.
+    scanner.set_config(zbar::ZBAR_NONE, zbar::ZBAR_CFG_ENABLE, 0); //first we need to deactivate all.
     scanner.set_config(zbar::ZBAR_QRCODE, zbar::ZBAR_CFG_ENABLE, 1);
-  
+    //scanner.enable_cache();
+
     // Convert image to grayscale and to zbar image:
     cv::Mat imGray;
     cv::cvtColor(im, imGray, CV_BGR2GRAY);
@@ -145,75 +83,119 @@ private:
   
     // Print results
     int counter = 0;
-    for(zbar::Image::SymbolIterator symbol = image.symbol_begin(); symbol != image.symbol_end(); ++symbol)
-    {
+    for(zbar::Image::SymbolIterator symbol = image.symbol_begin(); symbol != image.symbol_end(); ++symbol) {
+      counter++;
       decodedObject obj;
   
       obj.type = symbol->get_type_name();
       obj.data = symbol->get_data();
   
       // Print type and data
-      std::cout << "Code num: " << ++counter << std::endl;
+      /*
+      std::cout << "Code num: " << counter << std::endl;
       //std::cout << "Type    : " << obj.type  << std::endl; //always QR.
       std::cout << "Data    : " << obj.data  << std::endl << std::endl;
-  
+      */
+
       // Obtain location
-      for(int i = 0; i< symbol->get_location_size(); i++)
-      {
-        obj.location.push_back(cv::Point(symbol->get_location_x(i), symbol->get_location_y(i)));
+      std::vector<cv::Point> symbol_points;
+      for(int i = 0; i < symbol->get_location_size(); i++) {
+        symbol_points.push_back(cv::Point(symbol->get_location_x(i), symbol->get_location_y(i)));
       }
-  
+
+      std::vector<cv::Point> bbox_points = symbol_points;
+      std::vector<cv::Point> hull;
+      // If the points do not form a quad, find convex hull
+      if(bbox_points.size() > 4) {
+        convexHull(bbox_points, hull);
+      } else {
+        hull = bbox_points;
+      }
+      
+      int n = hull.size();
+      obj.centroid.x = 0;
+      obj.centroid.y = 0;
+      for(int i = 0; i < n; i++) {
+        int x = hull[i].x;
+        int y = hull[i].y;
+        obj.location.push_back(cv::Point(x, y));
+        obj.centroid.x += x;
+        obj.centroid.y += y;
+      }
+      obj.centroid.x /= n;
+      obj.centroid.y /= n;
+
+      obj.diagonal_avg_size = 0.0;
+      if (n == 4) { //squared
+        int x0 = obj.location[0].x, y0 = obj.location[0].y; // point 0
+        int x1 = obj.location[1].x, y1 = obj.location[1].y; // point 1
+        int x2 = obj.location[2].x, y2 = obj.location[2].y; // point 2
+        int x3 = obj.location[3].x, y3 = obj.location[3].y; // point 3
+        obj.diagonal_avg_size += sqrt((abs(x2-x0)^2) + (abs(y2-y0)^2)); //sum diag 0-2
+        obj.diagonal_avg_size += sqrt((abs(x3-x1)^2) + (abs(y3-y1)^2)); //sum diag 1-3
+        obj.diagonal_avg_size /= 2.0; //average
+      }
+
       decodedObjects.push_back(obj);
     }
   }
 
-  //TODO:
-  void get_bbox(cv::Mat &im, std::vector<decodedObject> &decodedObjects, std::vector<cv::Point> &bbox) {
-    ;
-  }
-
-  //TODO:
-  cv::Point get_centroid(std::vector<cv::Point> &bbox) {
-    cv::Point centroid(-1, -1);
-    return centroid;
-  }
-
   // Display barcode and QR code location
-  void display(cv::Mat &im, std::vector<decodedObject> &decodedObjects/*, std::vector<cv::Point> &centroids*/)
+  void display(cv::Mat &im, std::vector<decodedObject> &decodedObjects)
   {
     // Loop over all decoded objects
-    for(int i = 0; i < decodedObjects.size(); i++)
-    {
+    for(int i = 0; i < decodedObjects.size(); i++) {
+      //Draw bbox:
       std::vector<cv::Point> points = decodedObjects[i].location;
-      std::vector<cv::Point> hull;
-  
-      // If the points do not form a quad, find convex hull
-      if(points.size() > 4)
-        convexHull(points, hull);
-      else
-        hull = points;
-  
-      // Number of points in the convex hull
-      int n = hull.size();
-      int centroid_x = 0;
-      int centroid_y = 0;
-      for(int j = 0; j < n; j++)
-      {
-        cv::line(im, hull[j], hull[(j+1) % n], cv::Scalar(255, 0, 0), 3);
-        centroid_x += hull[j].x;
-        centroid_y += hull[(j+1) % n].y;
+      int n = points.size();
+      for(int j = 0; j < n; j++) {
+        cv::line(im, points[j], points[(j+1) % n], cv::Scalar(0, 0, 255), 3);
       }
-      /* //with the new functions we won't need them.
-      cv::Point centroid = cv::Point(centroid_x /= n, centroid_y /= n);
-      centroids.push_back(centroid);
-      cv::circle(im, centroid, 5, cv::Scalar(0, 0, 255), -1);
-      */
+
+      //Draw two corners:
+      cv::circle(im, points[0], 5, cv::Scalar(255, 0, 0), -1);
+      cv::circle(im, points[2], 5, cv::Scalar(255, 255, 0), -1);
+
+      //Draw centroid:
+      cv::Scalar centroid_color(0, 0, 255); //red
+      if(decodedObjects[i].data == qr_data_to_track_) {
+        centroid_color = cv::Scalar(0, 255, 0); // green
+      }
+      cv::circle(im, decodedObjects[i].centroid, 5, centroid_color, -1);
     }
   
-    // Display results
-    cv::imshow("Results", im);
+    // Display results:
+    cv::imshow("QR code detector (Zbar)", im);
     cv::waitKey(10);
-  
+  }
+
+  void publish_biggest_code(std::vector<decodedObject> &decodedObjects, cv::Size abs_img_size) {
+    float max_diag_size = 0;
+    decodedObject selected_obj;
+    for (int i = 0; i < decodedObjects.size(); i++) {
+      if(decodedObjects[i].diagonal_avg_size > max_diag_size &&
+          decodedObjects[i].data == qr_data_to_track_) {
+        selected_obj = decodedObjects[i];
+      }
+    }
+
+    //Create and send the message:
+    std_msgs::msg::Float32MultiArray centroid_per_msg = std_msgs::msg::Float32MultiArray();
+    centroid_per_msg.data = {0.0, 0.0, -1.0};
+    if (decodedObjects.size() > 0 && selected_obj.diagonal_avg_size > 0.0) {
+      centroid_per_msg.data = {
+        (( ((float) selected_obj.centroid.x) / abs_img_size.width) - 0.5) * 2.0,
+        (( ((float) selected_obj.centroid.y) / abs_img_size.height) - 0.5) * 2.0,
+        selected_obj.diagonal_avg_size};
+    }
+    RCLCPP_INFO(this->get_logger(), "centroid vals: [%f, %f, %f]",
+      centroid_per_msg.data[0],
+      centroid_per_msg.data[1],
+      centroid_per_msg.data[2]);
+
+    centroid_pub_->publish(centroid_per_msg);
+    
+
   }
 
   void topic_callback(sensor_msgs::msg::CompressedImage::SharedPtr msg)
@@ -223,18 +205,23 @@ private:
     //source (we have to use this because in a sensor_msgs::msg::CompressedImage
     //we don have the msg->encoding attribute):
     cv_ptr = cv_bridge::toCvCopy(msg, ""); //this actually works as a decoding function because it decompress the image msg.
-    
-    //cv::Mat im = imread("zbar-test.jpg");
  
     // Variable for decoded objects
     std::vector<decodedObject> decodedObjects;
   
     // Find and decode barcodes and QR codes
-    decode(cv_ptr->image, decodedObjects);
-  
+    find_and_decode(cv_ptr->image, decodedObjects);
+    
     // Display location
-    //std::vector<cv::Point> centroids;
-    display(cv_ptr->image, decodedObjects/*, centroids*/);
+    display(cv_ptr->image, decodedObjects);
+
+    // Send only the biggest code position:
+    publish_biggest_code(decodedObjects, cv_ptr->image.size());
+    /*
+    if (decodedObjects.size() > 0) {
+      publish_biggest_code(decodedObjects, cv_ptr->image.size());
+    }
+    */
   }
 
 
@@ -243,10 +230,7 @@ private:
   cv::QRCodeDetector qrDecoder_;
   cv::Mat bbox_, rectifiedImage_;
   
-  float side_threshold_;
-  bool display_gui_;
-  cv::Mat input_image_, qr_code_straight_;
-
+  std::string qr_data_to_track_;
 };
 
 
