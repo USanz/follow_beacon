@@ -23,6 +23,8 @@ import cv2, numpy as np
 from PIL import Image
 import pyqrcode
 from pyzbar.pyzbar import decode, ZBarSymbol
+import json, struct
+
 
 # --- Command line argument parsing --- --- --- --- --- ---
 parser = argparse.ArgumentParser(
@@ -42,10 +44,14 @@ parser.add_argument('--listen', '-l', dest='listen',
                     action='append',
                     type=str,
                     help='Endpoints to listen on.')
-parser.add_argument('--key', '-k', dest='key',
-                    default='rt/camera/image_compressed',
+parser.add_argument('--sub_key', '-s', dest='sub_key',
+                    default='rt/centroid/rel_pos',
                     type=str,
-                    help='The key expression to subscribe to.')
+                    help='The key expression to subscribe to receive the QR code coordinates.')
+parser.add_argument('--pub_key', '-p', dest='pub_key',
+                    default='rt/cmd_vel',
+                    type=str,
+                    help="The key expression to publish the commanded velocities to the robot.")
 parser.add_argument('--config', '-c', dest='config',
                     metavar='FILE',
                     type=str,
@@ -68,7 +74,8 @@ if args.connect is not None:
     conf.insert_json5(zenoh.config.CONNECT_KEY, json.dumps(args.connect))
 if args.listen is not None:
     conf.insert_json5(zenoh.config.LISTEN_KEY, json.dumps(args.listen))
-key = args.key
+sub_key = args.sub_key
+pub_key = args.pub_key
 detector = args.qr_code_detector
 display_gui = args.display_gui == 'true'
 # Zenoh code  --- --- --- --- --- --- --- --- --- --- ---
@@ -81,46 +88,34 @@ zenoh.init_logger()
 print("Opening session...")
 session = zenoh.open(conf)
 
-print("Declaring Subscriber on '{}'...".format(key))
-
-
 def listener(sample: Sample):
-    encimg = np.frombuffer(sample.payload, dtype=np.uint8)
-    decimg = cv2.imdecode(encimg, 1)
-    print(f"size: {decimg.size}, shape: {decimg.shape}")
-
-    print(display_gui)
-    if detector == "opencv":
-        qcd = cv2.QRCodeDetector() # openCV QR code detector and decoder
-        code_found, decoded_info, points, straight_qrcode = qcd.detectAndDecodeMulti(decimg)
-        #code_found, points = qcd.detectMulti(decimg) # detect only.
-
-        if code_found:
-            print("code/s found")
-            if display_gui:    
-                #draw bbox:
-                img = cv2.polylines(decimg, points.astype(int), True, (0, 255, 0), 3)
-                #write info decoded from QR:
-                for s, p in zip(decoded_info, points):
-                    img = cv2.putText(img, s, p[0].astype(int),
-                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
-    elif detector == "zbar":
-        decoded_list = decode(decimg, symbols=[ZBarSymbol.QRCODE]) # Zbar QR code detector and decoder
-        if len(decoded_list) > 0:
-            print("code/s found")
-            if display_gui:
-                for obj_decoded in decoded_list:
-                    decimg = cv2.polylines(decimg, [np.array(obj_decoded.polygon)], True, (0, 255, 0), 3)
+    #To receive the floats list:
+    #We know for sure that we'll receive a list with the centroid coordinates (x, y)
+    #and the diagonal size of the QR code, so the total lenght of the list is 3:
+    array_length = 3
+    message = struct.unpack('%sf' % array_length, sample.payload) # bytes to tuple
     
-    #visualization sometimes crashes (idk why):
-    if display_gui:
-        cv2.imshow("window", decimg)
-        cv2.waitKey(10)
+    #Other way is to receive the json format string:
+    #buf = sample.payload.decode('utf-8') #bytes to str
+    #print(json.loads(buf))
+    
+    print(message)
+    qr_x = message[0]
+    qr_y = message[1]
+    qr_avg_diag_size = message[2]
 
+    #TODO: publish a ROS2 Twist message with the velocities in /rt/cmd_vel
+
+
+print(f"Declaring Publisher on '{pub_key}'...")
+pub = session.declare_publisher(pub_key)
+
+print("Declaring Subscriber on '{}'...".format(sub_key))
 # WARNING, you MUST store the return value in order for the subscription to work!!
 # This is because if you don't, the reference counter will reach 0 and the subscription
 # will be immediately undeclared.
-sub = session.declare_subscriber(key, listener, reliability=Reliability.RELIABLE())
+sub = session.declare_subscriber(sub_key, listener, reliability=Reliability.RELIABLE())
+
 
 print("Enter 'q' to quit...")
 c = '\0'
@@ -131,5 +126,6 @@ while c != 'q':
 
 # Cleanup: note that even if you forget it, cleanup will happen automatically when 
 # the reference counter reaches 0
+pub.undeclare()
 sub.undeclare()
 session.close()
