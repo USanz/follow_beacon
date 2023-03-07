@@ -27,6 +27,8 @@ find_package(cv_bridge REQUIRED)
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 
+pkg_search_module(ZBAR REQUIRED zbar)
+
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -49,11 +51,11 @@ include_directories(
 
 
 set(EXEC_COLOR_FILTER_NAME "image_color_filter")
-set(EXEC_SOURCE_NAME "source_image_filter")
 set(EXEC_OP_NAME "operator_image")
 set(EXEC_SINK_NAME "sink_motors")
 set(EXEC_CAM_PUBLISHER_NAME "camera_image_pub")
 set(EXEC_QR_CODE_DETECTOR_NAME "qr_code_detector")
+set(EXEC_QR_CODE_DETECTOR_ZBAR_NAME "qr_code_detector_zbar")
 
 set(dependencies
   "std_msgs"
@@ -70,14 +72,6 @@ target_include_directories(${EXEC_COLOR_FILTER_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
 target_link_libraries(${EXEC_COLOR_FILTER_NAME}
-  ${OpenCV_LIBRARIES})
-
-add_executable(${EXEC_SOURCE_NAME} src/source_image_filter.cpp)
-ament_target_dependencies(${EXEC_SOURCE_NAME} ${dependencies})
-target_include_directories(${EXEC_SOURCE_NAME} PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>)
-target_link_libraries(${EXEC_SOURCE_NAME}
   ${OpenCV_LIBRARIES})
 
 add_executable(${EXEC_OP_NAME} src/operator_image.cpp)
@@ -110,15 +104,27 @@ target_include_directories(${EXEC_QR_CODE_DETECTOR_NAME} PUBLIC
 target_link_libraries(${EXEC_QR_CODE_DETECTOR_NAME}
   ${OpenCV_LIBRARIES})
 
+add_executable(${EXEC_QR_CODE_DETECTOR_ZBAR_NAME} src/qr_code_detector_zbar.cpp)
+ament_target_dependencies(${EXEC_QR_CODE_DETECTOR_ZBAR_NAME} ${dependencies})
+target_include_directories(${EXEC_QR_CODE_DETECTOR_ZBAR_NAME} PUBLIC
+  ${ZBAR_INCLUDE_DIRS}
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+target_link_directories(${EXEC_QR_CODE_DETECTOR_ZBAR_NAME} PUBLIC
+  ${ZBAR_LIBRARY_DIRS})
+target_link_libraries(${EXEC_QR_CODE_DETECTOR_ZBAR_NAME}
+  ${ZBAR_LIBRARIES}
+  ${OpenCV_LIBRARIES})
+
 
 
 install(TARGETS
   ${EXEC_COLOR_FILTER_NAME}
-  ${EXEC_SOURCE_NAME}
   ${EXEC_OP_NAME}
   ${EXEC_SINK_NAME}
   ${EXEC_CAM_PUBLISHER_NAME}
   ${EXEC_QR_CODE_DETECTOR_NAME}
+  ${EXEC_QR_CODE_DETECTOR_ZBAR_NAME}
   DESTINATION lib/${PROJECT_NAME}
 )
 

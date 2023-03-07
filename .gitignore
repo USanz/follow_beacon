@@ -1,1 +1,2 @@
-src/source_image_filter.cpp
+src/qr_tests/*.odt
+.vscode/settings.json

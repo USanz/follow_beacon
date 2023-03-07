@@ -1,8 +1,9 @@
 camera_image_pub_node:
   ros__parameters:
     img_resize_width: 640
-    img_resize_height: 320
-    cam_num: 0   # Put here a 0 if you only have one camera, put a 2 if you want your second cam
+    img_resize_height: 480
+    cam_num: 0   # Put here a 0 if you only have one camera, put a 2 if you want your second cam.
+    fps_pub: 15
 
 image_color_filter_node:
   ros__parameters:
@@ -20,13 +21,25 @@ image_operator_node:
     debug_circle_scale_radius: 500.0  #70 for the simulation because greens were bigger and noiseless
     debug_circle_color: [255, 0, 255]   # GBR
 
+qr_code_detector_node:
+  ros__parameters:
+    side_threshold: 5.0
+    display_gui: True
+
+qr_code_detector_node_zbar:
+  ros__parameters:
+    qr_data_to_track: "https://github.com/USanz/follow_beacon"
+
 sink_motors_node:
   ros__parameters:
     only_rotation_mode: False
     only_display_mode: False
-    goal_x_dist: 0.0    #Between the range [-1.0, 1.0]
-    goal_pix_per: 0.1   #Between the range [-1.0, 1.0]
+    goal_x_dist: 0.0    #Between the range [-1.0, 1.0] (pixels)
+    goal_pix_diag: 15.0   #Between the range [-1.0, 1.0] (pixels)
     goal_x_threshold: 0.12         #Between the range [-1.0, 1.0]
-    goal_pix_per_threshold: 0.05   #Between the range [-1.0, 1.0]
-    kp_w: 0.5   #Proportional controller constants for v and w
-    kp_v: 1.0   #kp_v is proportional to the object size.
+    goal_pix_diag_threshold: 0.05   #Between the range [-1.0, 1.0]
+    kp_w: 0.35   #Proportional controller constants for v and w
+    kp_v: 0.02   #kp_v is proportional to the object size.
+    target_lost_timeout: 3000 #ms for the robot to start searching the target when is not seen.
+
+
