@@ -99,16 +99,14 @@ for idx in itertools.count() if args.iter is None else range(args.iter):
     frame_grabbed, frame = camera.read()
     if frame_grabbed:
         resized_frame = cv2.resize(frame, img_resize_size, interpolation = cv2.INTER_AREA)
-        print(f"size: {resized_frame.size}, shape: {resized_frame.shape}")
 
         #cv2.imshow("window", resized_frame)
         #cv2.waitKey(10)
 
         encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), quality]
         result, encimg = cv2.imencode('.jpg', resized_frame, encode_param)
-        print(type(encimg))
-        print(f"size: {encimg.size}, shape: {encimg.shape}")
 
+        print(f"size: {resized_frame.size}, shape: {resized_frame.shape}, compressed size: {encimg.size}")
         print("Sending cam img...")
         pub.put(encimg.tobytes()) #only put the image
 
