@@ -59,6 +59,12 @@ parser.add_argument('--rate', '-r', dest='img_rate',
 parser.add_argument('--quality', '-q', dest='jpg_quality',
                     type=int, default=90,
                     help='An image quality jpg percentage.')
+parser.add_argument('--width', '-x', dest='img_resize_width',
+                    type=int, default=640,
+                    help='An image width resize value.')
+parser.add_argument('--height', '-y', dest='img_resize_height',
+                    type=int, default=480,
+                    help='An image height resize value.')
 
 args = parser.parse_args()
 conf = zenoh.Config.from_file(args.config) if args.config is not None else zenoh.Config()
@@ -72,6 +78,8 @@ key = args.key
 value = args.value
 rate = args.img_rate
 quality = args.jpg_quality
+img_resize_size = (args.img_resize_width, args.img_resize_height)
+
 # initiate logging
 zenoh.init_logger()
 
@@ -90,7 +98,7 @@ for idx in itertools.count() if args.iter is None else range(args.iter):
 
     frame_grabbed, frame = camera.read()
     if frame_grabbed:
-        resized_frame = cv2.resize(frame, (420, 360), interpolation = cv2.INTER_AREA)
+        resized_frame = cv2.resize(frame, img_resize_size, interpolation = cv2.INTER_AREA)
         print(f"size: {resized_frame.size}, shape: {resized_frame.shape}")
 
         #cv2.imshow("window", resized_frame)
