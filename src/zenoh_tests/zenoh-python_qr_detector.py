@@ -23,7 +23,8 @@ import cv2, numpy as np
 from PIL import Image
 import pyqrcode
 from pyzbar.pyzbar import decode, ZBarSymbol
-import json, struct
+import struct
+from QRCode import QRCode
 
 
 # --- Command line argument parsing --- --- --- --- --- ---
@@ -88,46 +89,58 @@ zenoh.init_logger()
 print("Opening session...")
 session = zenoh.open(conf)
 
+def get_biggest_qr_code(qr_codes):
+    if len(qr_codes) == 0:
+        return None
+    biggest_code = qr_codes[0]
+    for qr_code in qr_codes[1:]:
+        if qr_code > biggest_code:
+            biggest_code = qr_code
+    return biggest_code
+
+
 def listener(sample: Sample):
     encimg = np.frombuffer(sample.payload, dtype=np.uint8)
     decimg = cv2.imdecode(encimg, 1)
     print(f"received image of size {decimg.size} and shape: {decimg.shape}")
-
+    img_height, img_width, img_channels = decimg.shape
+    code_found = False
+    qr_codes = list()
     if detector == "opencv":
         qcd = cv2.QRCodeDetector() # openCV QR code detector and decoder
-        code_found, decoded_info, points, straight_qrcode = qcd.detectAndDecodeMulti(decimg)
+        code_found, decoded_info, qr_codes_points, straight_qrcode = qcd.detectAndDecodeMulti(decimg)
         #code_found, points = qcd.detectMulti(decimg) # detect only.
+        if code_found:
+            for points, data in zip(qr_codes_points, decoded_info):
+                qr_codes.append(QRCode(points, data, [img_width, img_height]))
+    elif detector == "zbar":
+        decoded_objects = decode(decimg, symbols=[ZBarSymbol.QRCODE]) # Zbar QR code detector and decoder
+        code_found = len(decoded_objects) > 0
+        if code_found:
+            for obj_decoded in decoded_objects:
+                points = np.array(obj_decoded.polygon, np.int32)
+                data = obj_decoded.data.decode('utf-8')
+                qr_codes.append(QRCode(points, data, [img_width, img_height]))
 
+    #visualization sometimes crashes when it has to show much data (higher quality or higher image rate (fps)):
+    if display_gui:
         if code_found:
             print("code/s found")
-            if display_gui:    
-                #draw bbox:
-                img = cv2.polylines(decimg, points.astype(int), True, (0, 255, 0), 3)
-                #write info decoded from QR:
-                for s, p in zip(decoded_info, points):
-                    img = cv2.putText(img, s, p[0].astype(int),
-                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
-    elif detector == "zbar":
-        decoded_list = decode(decimg, symbols=[ZBarSymbol.QRCODE]) # Zbar QR code detector and decoder
-        if len(decoded_list) > 0:
-            print("code/s found")
-            if display_gui:
-                for obj_decoded in decoded_list:
-                    decimg = cv2.polylines(decimg, [np.array(obj_decoded.polygon)], True, (0, 255, 0), 3)
-    
-    #visualization sometimes crashes (idk why):
-    if display_gui:
-        cv2.imshow("window", decimg)
+            for qr_code in qr_codes: #draw bounding boxes info decoded from QR codes:
+                decimg = qr_code.draw_bbox(decimg, (0, 255, 0), (0, 0, 255))
+        cv2.imshow("Zenoh python QR code detector", decimg)
         cv2.waitKey(10)
 
-    #TODO: compute the real values instead of sending a fixed list.
-    #To do that maybe we can pass the points (zbar vs opencv) to a single type
-    #and then compute to avoid duplicating code.
+    qr_code_to_track = get_biggest_qr_code(qr_codes)
 
     #Sending a list of floats serialized:
-    message_list = [0.25534, -0.22145, 13.2]
-    buf = struct.pack('%sf' % len(message_list), *message_list)
-    print(f"Publishing: {message_list}")
+    qr_msg = [0.0, 0.0, -1.0]
+    if qr_code_to_track != None:
+        qr_msg = qr_code_to_track.get_centroid_rel()
+        qr_msg.append(qr_code_to_track.get_diag_avg_size())
+    
+    buf = struct.pack('%sf' % len(qr_msg), *qr_msg)
+    print(f"Publishing: {qr_msg}")
     pub.put(buf)
 
     #Other way is sending a json string format serialized:

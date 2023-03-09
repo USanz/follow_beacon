@@ -23,8 +23,11 @@ import cv2, numpy as np
 from PIL import Image
 import pyqrcode
 from pyzbar.pyzbar import decode, ZBarSymbol
-import json, struct
+import struct
 
+from rclpy.impl.implementation_singleton import rclpy_implementation as _rclpy
+from rclpy.type_support import check_for_type_support
+from geometry_msgs.msg import Twist
 
 # --- Command line argument parsing --- --- --- --- --- ---
 parser = argparse.ArgumentParser(
@@ -56,14 +59,11 @@ parser.add_argument('--config', '-c', dest='config',
                     metavar='FILE',
                     type=str,
                     help='A configuration file.')
-parser.add_argument('--detector', '-d', dest='qr_code_detector',
-                    type=str, default='opencv',
-                    choices=['opencv', 'zbar'],
-                    help='A qr code detector library.')
-parser.add_argument('--gui', '-g', dest='display_gui',
-                    type=str, default='false',
-                    choices=['false', 'true'],
-                    help='A flag to display GUI.')
+parser.add_argument('--params-file', '-P', dest='params_file',
+                    required=True,
+                    metavar='FILE.json',
+                    type=str,
+                    help='A parameters json file.')
 
 args = parser.parse_args()
 conf = zenoh.Config.from_file(
@@ -76,8 +76,19 @@ if args.listen is not None:
     conf.insert_json5(zenoh.config.LISTEN_KEY, json.dumps(args.listen))
 sub_key = args.sub_key
 pub_key = args.pub_key
-detector = args.qr_code_detector
-display_gui = args.display_gui == 'true'
+
+f = open(args.params_file)
+params = json.load(f)["zenoh-python_sink_motors"]
+f.close()
+only_rotation_mode = params["only_rotation_mode"]
+only_display_mode = params["only_display_mode"]
+goal_x_dist = params["goal_x_dist"]
+goal_pix_diag = params["goal_pix_diag"]
+goal_x_threshold = params["goal_x_threshold"]
+goal_pix_diag_threshold = params["goal_pix_diag_threshold"]
+kp_v = params["kp_v"]
+kp_w = params["kp_w"]
+target_lost_timeout = params["target_lost_timeout"]
 # Zenoh code  --- --- --- --- --- --- --- --- --- --- ---
 
 
@@ -88,7 +99,10 @@ zenoh.init_logger()
 print("Opening session...")
 session = zenoh.open(conf)
 
+check_for_type_support(Twist)
+
 def listener(sample: Sample):
+    global target_lost_ts
     #To receive the floats list:
     #We know for sure that we'll receive a list with the centroid coordinates (x, y)
     #and the diagonal size of the QR code, so the total lenght of the list is 3:
@@ -100,11 +114,44 @@ def listener(sample: Sample):
     #print(json.loads(buf))
     
     print(message)
-    qr_x = message[0]
-    qr_y = message[1]
-    qr_avg_diag_size = message[2]
+    qr_x = message[0] #relative to the image width [-1, 1].
+    qr_y = message[1] #relative to the image height [-1, 1] (unsused at the moment).
+    qr_avg_diag_size = message[2] # in pixels.
 
-    #TODO: publish a ROS2 Twist message with the velocities in /rt/cmd_vel
+    cmd_vel_msg = Twist()
+    cmd_vel_msg.linear.x = 0.0
+    cmd_vel_msg.linear.y = 0.0
+    cmd_vel_msg.linear.z = 0.0
+    cmd_vel_msg.angular.x = 0.0
+    cmd_vel_msg.angular.y = 0.0
+    cmd_vel_msg.angular.z = 0.0
+
+    error_x_dist = goal_x_dist - qr_x
+    wanted_w = kp_w * error_x_dist #angular vel.
+    error_pix_diag = goal_pix_diag - qr_avg_diag_size
+    wanted_v = kp_v * error_pix_diag #linear vel.
+
+
+    if not only_display_mode:
+        if qr_avg_diag_size > 0:
+            if (abs(error_pix_diag) >= goal_pix_diag_threshold\
+                    and not only_rotation_mode):
+                cmd_vel_msg.linear.x = wanted_v
+            if (abs(error_x_dist) >= goal_x_threshold):
+                cmd_vel_msg.angular.z = wanted_w
+            target_lost_ts = time.time() #reset time
+        else:
+            pass
+            new_ts = time.time()
+            if (new_ts - target_lost_ts >= target_lost_timeout):
+                cmd_vel_msg.angular.z = 0.1
+
+    print(f"Calculated vels [v, w]: [{wanted_v}, {wanted_w}]\n Sending vels [v, w]: [{cmd_vel_msg.linear.x}, {cmd_vel_msg.angular.z}]")
+
+    ser_msg = _rclpy.rclpy_serialize(cmd_vel_msg, Twist)
+    pub.put(ser_msg)
+
+
 
 
 print(f"Declaring Publisher on '{pub_key}'...")
@@ -114,6 +161,8 @@ print("Declaring Subscriber on '{}'...".format(sub_key))
 # WARNING, you MUST store the return value in order for the subscription to work!!
 # This is because if you don't, the reference counter will reach 0 and the subscription
 # will be immediately undeclared.
+
+target_lost_ts = time.time()
 sub = session.declare_subscriber(sub_key, listener, reliability=Reliability.RELIABLE())
 
 
