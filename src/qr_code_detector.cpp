@@ -66,16 +66,12 @@ private:
         2);
     }
     //two opposite corners to see the rotation.
-    cv::circle(im,
-      cv::Point2i(bbox.at<float>(0), bbox.at<float>(1)),
-      5,
-      cv::Scalar(0, 0, 255),
-      -1);
-    cv::circle(im,
-      cv::Point2i(bbox.at<float>(4), bbox.at<float>(5)),
-      5,
-      cv::Scalar(0, 255, 0),
-      -1);
+    cv::circle(
+      im, cv::Point2i(bbox.at<float>(0), bbox.at<float>(1)),
+      5, cv::Scalar(0, 0, 255), -1);
+    cv::circle(
+      im, cv::Point2i(bbox.at<float>(4), bbox.at<float>(5)),
+      5, cv::Scalar(0, 255, 0), -1);
   }
 
   float get_centroid_and_size(cv::Mat &bbox, std::vector<int> &centroid) {
@@ -92,30 +88,28 @@ private:
     centroid[0] = sum_x / n;
     centroid[1] = sum_y / n;
     
-
-    //test if the bbox is valid (comparing the sides length ~= squared or romboid):
     int x0 = bbox.at<float>(0), y0 = bbox.at<float>(1); // i = 0
-    int x2 = bbox.at<float>(4), y2 = bbox.at<float>(5); // i = 2
     int x1 = bbox.at<float>(2), y1 = bbox.at<float>(3); // i = 1
+    int x2 = bbox.at<float>(4), y2 = bbox.at<float>(5); // i = 2
     int x3 = bbox.at<float>(6), y3 = bbox.at<float>(7); // i = 3
-    float dist01 = sqrt((abs(x1-x0)^2) + (abs(y1-y0)^2)); //distance from 0 to 1
-    float dist12 = sqrt((abs(x2-x1)^2) + (abs(y2-y1)^2)); //distance from 1 to 2
-    float dist23 = sqrt((abs(x3-x2)^2) + (abs(y3-y2)^2)); //distance from 2 to 3
-    float dist30 = sqrt((abs(x0-x3)^2) + (abs(y0-y3)^2)); //distance from 3 to 0
+    float dist01 = sqrt(pow(x1-x0, 2) + pow(y1-y0, 2)); //distance from 0 to 1
+    float dist12 = sqrt(pow(x2-x1, 2) + pow(y2-y1, 2)); //distance from 1 to 2
+    float dist23 = sqrt(pow(x3-x2, 2) + pow(y3-y2, 2)); //distance from 2 to 3
+    float dist30 = sqrt(pow(x0-x3, 2) + pow(y0-y3, 2)); //distance from 3 to 0
+    float diag02 = sqrt(pow(x2-x0, 2) + pow(y2-y0, 2)); //diagonal from 0 to 2
+    float diag13 = sqrt(pow(x3-x1, 2) + pow(y3-y1, 2)); //diagonal from 1 to 3
     
+    //test if the bbox is valid (comparing the sides length ~= squared or romboid):
     bool is_valid = (
       fabs(dist01 - dist12) < side_threshold_ &&
       fabs(dist12 - dist23) < side_threshold_ &&
       fabs(dist23 - dist30) < side_threshold_ &&
       fabs(dist30 - dist01) < side_threshold_);
 
-    float size = -1.0;
-    if (is_valid) {
-      float diag02 = sqrt((abs(x2-x0)^2) + (abs(y2-y0)^2)); //diagonal from 0 to 2
-      float diag13 = sqrt((abs(x3-x1)^2) + (abs(y3-y1)^2)); //diagonal from 1 to 3
-      size = (diag02 + diag13) / 2.0; //average of the diagonals
+    if (!is_valid) { //not squared.
+      return -1;
     }
-    return size;
+    return (diag02 + diag13) / 2.0; //diagonal avergae size.
   }
 
   void topic_callback(sensor_msgs::msg::CompressedImage::SharedPtr msg)

@@ -23,7 +23,7 @@ image_operator_node:
 
 qr_code_detector_node:
   ros__parameters:
-    side_threshold: 5.0
+    side_threshold: 85.0
     display_gui: True
 
 qr_code_detector_node_zbar:
@@ -34,12 +34,12 @@ sink_motors_node:
   ros__parameters:
     only_rotation_mode: False
     only_display_mode: False
-    goal_x_dist: 0.0    #Between the range [-1.0, 1.0] (pixels)
-    goal_pix_diag: 15.0   #Between the range [-1.0, 1.0] (pixels)
-    goal_x_threshold: 0.12         #Between the range [-1.0, 1.0]
-    goal_pix_diag_threshold: 0.05   #Between the range [-1.0, 1.0]
+    goal_x_dist: 0.0       #Between the range [-1.0, 1.0]
+    goal_pix_diag: 160.0   #In pixels
+    goal_x_threshold: 0.10          #Between the range [0.0, 1.0]
+    goal_pix_diag_threshold: 0.05   #Between the range [0.0, 1.0]
     kp_w: 0.35   #Proportional controller constants for v and w
-    kp_v: 0.02   #kp_v is proportional to the object size.
+    kp_v: 0.005   #kp_v is proportional to the object size.
     target_lost_timeout: 3000 #ms for the robot to start searching the target when is not seen.
 
 

@@ -131,8 +131,8 @@ private:
         int x1 = obj.location[1].x, y1 = obj.location[1].y; // point 1
         int x2 = obj.location[2].x, y2 = obj.location[2].y; // point 2
         int x3 = obj.location[3].x, y3 = obj.location[3].y; // point 3
-        obj.diagonal_avg_size += sqrt((abs(x2-x0)^2) + (abs(y2-y0)^2)); //sum diag 0-2
-        obj.diagonal_avg_size += sqrt((abs(x3-x1)^2) + (abs(y3-y1)^2)); //sum diag 1-3
+        obj.diagonal_avg_size += sqrt(pow(x2-x0, 2) + pow(y2-y0, 2)); //sum diag 0-2
+        obj.diagonal_avg_size += sqrt(pow(x3-x1, 2) + pow(y3-y1, 2)); //sum diag 1-3
         obj.diagonal_avg_size /= 2.0; //average
       }
 
@@ -216,12 +216,9 @@ private:
     display(cv_ptr->image, decodedObjects);
 
     // Send only the biggest code position:
-    publish_biggest_code(decodedObjects, cv_ptr->image.size());
-    /*
     if (decodedObjects.size() > 0) {
       publish_biggest_code(decodedObjects, cv_ptr->image.size());
     }
-    */
   }
 
 
