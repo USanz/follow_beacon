@@ -35,6 +35,7 @@ class QRCode:
     def get_centroid(self): return self.centroid
     def get_centroid_rel(self): return self.centroid_rel
     def get_diag_avg_size(self): return self.diag_avg_size
+    def data_matches(self, data): return data == self.data
 
     def draw_bbox(self, img, bbox_color, text_color):
         new_img = cv2.polylines(img, [self.points.astype(int)], True, bbox_color, 3)

@@ -12,7 +12,6 @@
 #   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 #
 
-import sys
 import time
 import argparse
 import itertools
@@ -23,8 +22,8 @@ import cv2, numpy as np
 
 # --- Command line argument parsing --- --- --- --- --- ---
 parser = argparse.ArgumentParser(
-    prog='z_pub',
-    description='zenoh pub example')
+    prog='zp_img_pub',
+    description='zenoh compressed image publisher')
 parser.add_argument('--mode', '-m', dest='mode',
                     choices=['peer', 'client'],
                     type=str,
@@ -39,32 +38,17 @@ parser.add_argument('--listen', '-l', dest='listen',
                     action='append',
                     type=str,
                     help='Endpoints to listen on.')
-parser.add_argument('--key', '-k', dest='key',
-                    default='rt/camera/image_compressed',
-                    type=str,
-                    help='The key expression to publish onto.')
-parser.add_argument('--value', '-v', dest='value',
-                    default=cv2.imread('/home/usanz/zs_t3/t3_ws/src/follow_beacon/src/qr_tests/qr_code.png'),
-                    type=np.ndarray,
-                    help='The value to publish.')
 parser.add_argument("--iter", dest="iter", type=int,
                     help="How many puts to perform")
 parser.add_argument('--config', '-c', dest='config',
                     metavar='FILE',
                     type=str,
                     help='A configuration file.')
-parser.add_argument('--rate', '-r', dest='img_rate',
-                    type=int, default=2,
-                    help='An image publishing rate (fps)')
-parser.add_argument('--quality', '-q', dest='jpg_quality',
-                    type=int, default=90,
-                    help='An image quality jpg percentage.')
-parser.add_argument('--width', '-x', dest='img_resize_width',
-                    type=int, default=640,
-                    help='An image width resize value.')
-parser.add_argument('--height', '-y', dest='img_resize_height',
-                    type=int, default=480,
-                    help='An image height resize value.')
+parser.add_argument('--params-file', '-P', dest='params_file',
+                    required=True,
+                    metavar='FILE',
+                    type=str,
+                    help='A parameters json file.')
 
 args = parser.parse_args()
 conf = zenoh.Config.from_file(args.config) if args.config is not None else zenoh.Config()
@@ -74,11 +58,15 @@ if args.connect is not None:
     conf.insert_json5(zenoh.config.CONNECT_KEY, json.dumps(args.connect))
 if args.listen is not None:
     conf.insert_json5(zenoh.config.LISTEN_KEY, json.dumps(args.listen))
-key = args.key
-value = args.value
-rate = args.img_rate
-quality = args.jpg_quality
-img_resize_size = (args.img_resize_width, args.img_resize_height)
+
+f = open(args.params_file)
+params = json.load(f)["zenoh-python_img_pub"]
+f.close()
+
+key = params["pub_key"]
+rate = params["pub_rate"]
+quality = params["compression_quality"]
+img_resize_size = (params["img_resize_width"], params["img_resize_height"])
 
 # initiate logging
 zenoh.init_logger()
@@ -99,9 +87,6 @@ for idx in itertools.count() if args.iter is None else range(args.iter):
     frame_grabbed, frame = camera.read()
     if frame_grabbed:
         resized_frame = cv2.resize(frame, img_resize_size, interpolation = cv2.INTER_AREA)
-
-        #cv2.imshow("window", resized_frame)
-        #cv2.waitKey(10)
 
         encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), quality]
         result, encimg = cv2.imencode('.jpg', resized_frame, encode_param)

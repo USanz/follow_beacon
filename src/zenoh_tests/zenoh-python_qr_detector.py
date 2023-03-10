@@ -14,14 +14,11 @@
 
 import sys
 import time
-from datetime import datetime
 import argparse
 import json
 import zenoh
 from zenoh import Reliability, Sample
 import cv2, numpy as np
-from PIL import Image
-import pyqrcode
 from pyzbar.pyzbar import decode, ZBarSymbol
 import struct
 from QRCode import QRCode
@@ -29,8 +26,8 @@ from QRCode import QRCode
 
 # --- Command line argument parsing --- --- --- --- --- ---
 parser = argparse.ArgumentParser(
-    prog='z_sub',
-    description='zenoh sub example')
+    prog='zp_qr_code_detector',
+    description='zenoh qr code detector (it subscribes to the compressed image and publishes the charasteristics of the biggest matching qr code)')
 parser.add_argument('--mode', '-m', dest='mode',
                     choices=['peer', 'client'],
                     type=str,
@@ -45,26 +42,15 @@ parser.add_argument('--listen', '-l', dest='listen',
                     action='append',
                     type=str,
                     help='Endpoints to listen on.')
-parser.add_argument('--sub_key', '-s', dest='sub_key',
-                    default='rt/camera/image_compressed',
-                    type=str,
-                    help='The key expression to subscribe to receive the image from.')
-parser.add_argument('--pub_key', '-p', dest='pub_key',
-                    default='rt/centroid/rel_pos',
-                    type=str,
-                    help="The key expression to publish the QR code's centroid relative coordinates.")
 parser.add_argument('--config', '-c', dest='config',
                     metavar='FILE',
                     type=str,
                     help='A configuration file.')
-parser.add_argument('--detector', '-d', dest='qr_code_detector',
-                    type=str, default='opencv',
-                    choices=['opencv', 'zbar'],
-                    help='A qr code detector library.')
-parser.add_argument('--gui', '-g', dest='display_gui',
-                    type=str, default='false',
-                    choices=['false', 'true'],
-                    help='A flag to display GUI.')
+parser.add_argument('--params-file', '-P', dest='params_file',
+                    required=True,
+                    metavar='FILE',
+                    type=str,
+                    help='A parameters json file.')
 
 args = parser.parse_args()
 conf = zenoh.Config.from_file(
@@ -75,10 +61,16 @@ if args.connect is not None:
     conf.insert_json5(zenoh.config.CONNECT_KEY, json.dumps(args.connect))
 if args.listen is not None:
     conf.insert_json5(zenoh.config.LISTEN_KEY, json.dumps(args.listen))
-sub_key = args.sub_key
-pub_key = args.pub_key
-detector = args.qr_code_detector
-display_gui = args.display_gui == 'true'
+
+f = open(args.params_file)
+params = json.load(f)["zenoh-python_qr_detector"]
+f.close()
+
+sub_key = params["sub_key"]
+pub_key = params["pub_key"]
+detector = params["qr_code_detector"]
+display_gui = params["display_gui"]
+qr_data_to_track = params["qr_data_to_track"]
 # Zenoh code  --- --- --- --- --- --- --- --- --- --- ---
 
 
@@ -89,12 +81,12 @@ zenoh.init_logger()
 print("Opening session...")
 session = zenoh.open(conf)
 
-def get_biggest_qr_code(qr_codes):
+def get_biggest_qr_code_matching(qr_codes, data):
     if len(qr_codes) == 0:
         return None
-    biggest_code = qr_codes[0]
-    for qr_code in qr_codes[1:]:
-        if qr_code > biggest_code:
+    biggest_code = None
+    for qr_code in qr_codes:
+        if (biggest_code == None or qr_code > biggest_code) and qr_code.data_matches(data):
             biggest_code = qr_code
     return biggest_code
 
@@ -131,7 +123,7 @@ def listener(sample: Sample):
         cv2.imshow("Zenoh python QR code detector", decimg)
         cv2.waitKey(10)
 
-    qr_code_to_track = get_biggest_qr_code(qr_codes)
+    qr_code_to_track = get_biggest_qr_code_matching(qr_codes, qr_data_to_track)
 
     #Sending a list of floats serialized:
     qr_msg = [0.0, 0.0, -1.0]

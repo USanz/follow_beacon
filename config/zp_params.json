@@ -1,25 +1,32 @@
 {
     "zenoh-python_img_pub":
         {
+            "pub_key": "rt/camera/image_compressed",
             "pub_rate": 15,
-            "compression_quality": 70
+            "compression_quality": 90,
+            "img_resize_width": 640,
+            "img_resize_height": 480
         },
     "zenoh-python_qr_detector":
         {
-            "detector": "opencv",
-            "display_gui": true,
+            "sub_key": "rt/camera/image_compressed",
+            "pub_key": "rt/centroid/rel_pos",
+            "qr_code_detector": "zbar",
+            "display_gui": false,
             "qr_data_to_track": "https://github.com/USanz/follow_beacon"
         },
     "zenoh-python_sink_motors":
         {
-            "only_rotation_mode": true,
+            "sub_key": "rt/centroid/rel_pos",
+            "pub_key": "rt/cmd_vel",
+            "only_rotation_mode": false,
             "only_display_mode": false,
             "goal_x_dist": 0.0,
-            "goal_pix_diag": 170.0,
-            "goal_x_threshold": 0.12,
+            "goal_pix_diag": 160.0,
+            "goal_x_threshold": 0.10,
             "goal_pix_diag_threshold": 0.05,
             "kp_w": 0.35,
-            "kp_v": 0.02,
+            "kp_v": 0.005,
             "target_lost_timeout": 3000
         }
 }

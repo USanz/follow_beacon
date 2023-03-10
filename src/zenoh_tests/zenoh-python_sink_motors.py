@@ -14,25 +14,20 @@
 
 import sys
 import time
-from datetime import datetime
 import argparse
 import json
 import zenoh
 from zenoh import Reliability, Sample
-import cv2, numpy as np
-from PIL import Image
-import pyqrcode
-from pyzbar.pyzbar import decode, ZBarSymbol
-import struct
 
+import struct
 from rclpy.impl.implementation_singleton import rclpy_implementation as _rclpy
 from rclpy.type_support import check_for_type_support
 from geometry_msgs.msg import Twist
 
 # --- Command line argument parsing --- --- --- --- --- ---
 parser = argparse.ArgumentParser(
-    prog='z_sub',
-    description='zenoh sub example')
+    prog='zp_sink_motors',
+    description='zenoh velocity publisher (it subscribes to the qr charasteristics and publishes velocities to the robot)')
 parser.add_argument('--mode', '-m', dest='mode',
                     choices=['peer', 'client'],
                     type=str,
@@ -47,21 +42,13 @@ parser.add_argument('--listen', '-l', dest='listen',
                     action='append',
                     type=str,
                     help='Endpoints to listen on.')
-parser.add_argument('--sub_key', '-s', dest='sub_key',
-                    default='rt/centroid/rel_pos',
-                    type=str,
-                    help='The key expression to subscribe to receive the QR code coordinates.')
-parser.add_argument('--pub_key', '-p', dest='pub_key',
-                    default='rt/cmd_vel',
-                    type=str,
-                    help="The key expression to publish the commanded velocities to the robot.")
 parser.add_argument('--config', '-c', dest='config',
                     metavar='FILE',
                     type=str,
                     help='A configuration file.')
 parser.add_argument('--params-file', '-P', dest='params_file',
                     required=True,
-                    metavar='FILE.json',
+                    metavar='FILE',
                     type=str,
                     help='A parameters json file.')
 
@@ -74,12 +61,13 @@ if args.connect is not None:
     conf.insert_json5(zenoh.config.CONNECT_KEY, json.dumps(args.connect))
 if args.listen is not None:
     conf.insert_json5(zenoh.config.LISTEN_KEY, json.dumps(args.listen))
-sub_key = args.sub_key
-pub_key = args.pub_key
 
 f = open(args.params_file)
 params = json.load(f)["zenoh-python_sink_motors"]
 f.close()
+
+sub_key = params["sub_key"]
+pub_key = params["pub_key"]
 only_rotation_mode = params["only_rotation_mode"]
 only_display_mode = params["only_display_mode"]
 goal_x_dist = params["goal_x_dist"]
