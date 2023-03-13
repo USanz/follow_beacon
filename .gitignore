@@ -1,2 +1,3 @@
 src/qr_tests/*.odt
 .vscode/settings.json
+src/zenoh_nodes/__pycache__/*
