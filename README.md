@@ -1,3 +1,10 @@
+# Introduction
+
+This repository contains various ways to make a turtlebot3 follow a beacon (a QR code in this case).
+We can see the evolution from a ROS2 package to the use of other pub/sub protocol: Zenoh.
+
+There's more information about this project and how to run it in the [getting started section](#getting-started)
+
 # Requirements
 
  * ROS2:
