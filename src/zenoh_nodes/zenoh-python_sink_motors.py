@@ -24,7 +24,10 @@ from rclpy.impl.implementation_singleton import rclpy_implementation as _rclpy
 from rclpy.type_support import check_for_type_support
 from geometry_msgs.msg import Twist
 
+
+
 # --- Command line argument parsing --- --- --- --- --- ---
+
 parser = argparse.ArgumentParser(
     prog='zp_sink_motors',
     description='zenoh velocity publisher (it subscribes to the qr charasteristics and publishes velocities to the robot)')
@@ -77,9 +80,41 @@ goal_pix_diag_threshold = params["goal_pix_diag_threshold"]
 kp_v = params["kp_v"]
 kp_w = params["kp_w"]
 target_lost_timeout = params["target_lost_timeout"]
-# Zenoh code  --- --- --- --- --- --- --- --- --- --- ---
 
 
+
+# --- Some function definitions --- --- --- --- --- ---
+
+def get_time_ms():
+    return time.time() * 1e3 # get the number of milliseconds after epoch.
+
+def publish(cmd_vel_msg):
+    ser_msg = _rclpy.rclpy_serialize(cmd_vel_msg, type(cmd_vel_msg))
+    pub.put(ser_msg)
+
+def get_twist_msg(init_vels = []):
+    twist_msg = Twist()
+    twist_msg.linear.x = 0.0
+    twist_msg.linear.y = 0.0
+    twist_msg.linear.z = 0.0
+    twist_msg.angular.x = 0.0
+    twist_msg.angular.y = 0.0
+    twist_msg.angular.z = 0.0
+
+    if len(init_vels) == 6: # unwrap
+        twist_msg.linear.x, twist_msg.linear.y,
+        twist_msg.linear.z, twist_msg.angular.x,
+        twist_msg.angular.y, twist_msg.angular.z = init_vels
+
+    return twist_msg
+
+def stop_robot():
+    cmd_vel_msg = get_twist_msg()
+    publish(cmd_vel_msg)
+
+
+
+# --- Zenoh code --- --- --- --- --- ---
 
 # initiate logging
 zenoh.init_logger()
@@ -89,8 +124,9 @@ session = zenoh.open(conf)
 
 check_for_type_support(Twist)
 
+message = [0.0, 0.0, -1.0]
 def listener(sample: Sample):
-    global target_lost_ts
+    global message
     #To receive the floats list:
     #We know for sure that we'll receive a list with the centroid coordinates (x, y)
     #and the diagonal size of the QR code, so the total lenght of the list is 3:
@@ -101,46 +137,7 @@ def listener(sample: Sample):
     #buf = sample.payload.decode('utf-8') #bytes to str
     #print(json.loads(buf))
     
-    print(message)
-    qr_x = message[0] #relative to the image width [-1, 1].
-    qr_y = message[1] #relative to the image height [-1, 1] (unsused at the moment).
-    qr_avg_diag_size = message[2] # in pixels.
-
-    cmd_vel_msg = Twist()
-    cmd_vel_msg.linear.x = 0.0
-    cmd_vel_msg.linear.y = 0.0
-    cmd_vel_msg.linear.z = 0.0
-    cmd_vel_msg.angular.x = 0.0
-    cmd_vel_msg.angular.y = 0.0
-    cmd_vel_msg.angular.z = 0.0
-
-    error_x_dist = goal_x_dist - qr_x
-    wanted_w = kp_w * error_x_dist #angular vel.
-    error_pix_diag = goal_pix_diag - qr_avg_diag_size
-    wanted_v = kp_v * error_pix_diag #linear vel.
-
-
-    if not only_display_mode:
-        if qr_avg_diag_size > 0:
-            if (abs(error_pix_diag) >= goal_pix_diag_threshold\
-                    and not only_rotation_mode):
-                cmd_vel_msg.linear.x = wanted_v
-            if (abs(error_x_dist) >= goal_x_threshold):
-                cmd_vel_msg.angular.z = wanted_w
-            target_lost_ts = time.time() #reset time
-        else:
-            pass
-            new_ts = time.time()
-            if (new_ts - target_lost_ts >= target_lost_timeout):
-                cmd_vel_msg.angular.z = 0.1
-
-    print(f"Calculated vels [v, w]: [{wanted_v}, {wanted_w}]\n Sending vels [v, w]: [{cmd_vel_msg.linear.x}, {cmd_vel_msg.angular.z}]")
-
-    ser_msg = _rclpy.rclpy_serialize(cmd_vel_msg, Twist)
-    pub.put(ser_msg)
-
-
-
+    #print(message)
 
 print(f"Declaring Publisher on '{pub_key}'...")
 pub = session.declare_publisher(pub_key)
@@ -150,19 +147,55 @@ print("Declaring Subscriber on '{}'...".format(sub_key))
 # This is because if you don't, the reference counter will reach 0 and the subscription
 # will be immediately undeclared.
 
-target_lost_ts = time.time()
+target_lost_ts = get_time_ms()
 sub = session.declare_subscriber(sub_key, listener, reliability=Reliability.RELIABLE())
 
 
-print("Enter 'q' to quit...")
-c = '\0'
-while c != 'q':
-    c = sys.stdin.read(1)
-    if c == '':
-        time.sleep(1)
 
-# Cleanup: note that even if you forget it, cleanup will happen automatically when 
-# the reference counter reaches 0
-pub.undeclare()
-sub.undeclare()
-session.close()
+# --- main code and logic --- --- --- --- --- ---
+
+def main():
+    global target_lost_ts
+
+    while True:
+        #print(message)
+        qr_x, qr_y, qr_avg_diag_size = message
+        
+        cmd_vel_msg = get_twist_msg()
+
+        error_x_dist = goal_x_dist - qr_x
+        wanted_w = kp_w * error_x_dist #angular vel.
+        error_pix_diag = goal_pix_diag - qr_avg_diag_size
+        wanted_v = kp_v * error_pix_diag #linear vel.
+
+        if not only_display_mode:
+            if qr_avg_diag_size > 0:
+                if (abs(error_pix_diag) >= goal_pix_diag_threshold\
+                        and not only_rotation_mode):
+                    cmd_vel_msg.linear.x = wanted_v
+                if (abs(error_x_dist) >= goal_x_threshold):
+                    cmd_vel_msg.angular.z = wanted_w
+                target_lost_ts = get_time_ms() #reset time
+            else:
+                new_ts = get_time_ms()
+                if (new_ts - target_lost_ts >= target_lost_timeout):
+                    cmd_vel_msg.angular.z = 0.1
+
+        print(f"Calculated vels [v, w]: [{wanted_v}, {wanted_w}] Sending vels [v, w]: [{cmd_vel_msg.linear.x}, {cmd_vel_msg.angular.z}]")
+
+        publish(cmd_vel_msg)
+
+        time.sleep(1e-2)
+
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        stop_robot()
+        # Cleanup: note that even if you forget it, cleanup will happen automatically when 
+        # the reference counter reaches 0
+        pub.undeclare()
+        sub.undeclare()
+        session.close()
