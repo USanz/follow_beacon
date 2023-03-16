@@ -171,14 +171,16 @@ def main():
         marker_array = MarkerArray()
         marker_array.markers = []
 
-        time.sleep(1e-1)
+        time.sleep(1e-2)
 
-        #print(type(rclpy.time.Time()))
-        #print(type(Clock().now()))
+        #The main difference between them is that:
+        #rclpy.time.Time() #this is the latest available transform in the buffer
+        #Clock().now() # but this fetches the frame at the exact moment.
+        #Thats the reason why with the last one doesn't work well.
         rep_force_marker = get_marker(id=0, frame_id="base_scan", ns="forces",
                                       stamp=rclpy.time.Time().to_msg(),
                                       type=Marker.ARROW, action=Marker.ADD,
-                                      position=[0.0, 0.0, 0.3],
+                                      position=[0.0, 0.0, 0.0],
                                       orientation=[0.0, 0.0, rep_theta],
                                       scale=[rep_r/300, 0.05, 0.05],
                                       color=[1.0, 1.0, 0.0], alpha=0.5)
@@ -187,7 +189,7 @@ def main():
         atr_force_marker = get_marker(id=1, frame_id="base_scan", ns="forces",
                                       stamp=rclpy.time.Time().to_msg(),
                                       type=Marker.ARROW, action=Marker.ADD,
-                                      position=[0.0, 0.0, 0.3],
+                                      position=[0.0, 0.0, 0.0],
                                       orientation=[0.0, 0.0, rep_theta],
                                       scale=[-rep_r/300, 0.05, 0.05],
                                       color=[0.0, 1.0, 1.0], alpha=0.5)
