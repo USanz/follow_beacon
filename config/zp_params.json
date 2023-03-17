@@ -12,7 +12,8 @@
             "sub_key": "rt/camera/image_compressed",
             "pub_key": "rt/centroid/rel_pos",
             "qr_code_detector": "zbar",
-            "display_gui": false,
+            "debug_mode_on": true,
+            "img_debug_pub_key": "rt/debug/image/qr_codes",
             "qr_data_to_track": "https://github.com/USanz/follow_beacon"
         },
     "zenoh-python_sink_motors":

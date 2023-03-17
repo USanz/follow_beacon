@@ -23,6 +23,11 @@ from pyzbar.pyzbar import decode, ZBarSymbol
 import struct
 from QRCode import QRCode
 
+from rclpy.impl.implementation_singleton import rclpy_implementation as _rclpy
+from rclpy.type_support import check_for_type_support
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
+
 
 # --- Command line argument parsing --- --- --- --- --- ---
 parser = argparse.ArgumentParser(
@@ -69,7 +74,8 @@ f.close()
 sub_key = params["sub_key"]
 pub_key = params["pub_key"]
 detector = params["qr_code_detector"]
-display_gui = params["display_gui"]
+debug_mode_on = params["debug_mode_on"]
+debug_pub_key = params["img_debug_pub_key"]
 qr_data_to_track = params["qr_data_to_track"]
 # Zenoh code  --- --- --- --- --- --- --- --- --- --- ---
 
@@ -80,6 +86,8 @@ zenoh.init_logger()
 
 print("Opening session...")
 session = zenoh.open(conf)
+
+check_for_type_support(Image)
 
 def get_biggest_qr_code_matching(qr_codes, data):
     if len(qr_codes) == 0:
@@ -115,13 +123,16 @@ def listener(sample: Sample):
                 qr_codes.append(QRCode(points, data, [img_width, img_height]))
 
     #visualization sometimes crashes when it has to show much data (higher quality or higher image rate (fps)):
-    if display_gui:
+    if debug_mode_on:
         if code_found:
             print("code/s found")
             for qr_code in qr_codes: #draw bounding boxes info decoded from QR codes:
                 decimg = qr_code.draw_bbox(decimg, (0, 255, 0), (0, 0, 255))
-        cv2.imshow("Zenoh python QR code detector", decimg)
-        cv2.waitKey(10)
+        print("Publishing debug img...")
+        br = CvBridge()
+        img_msg = br.cv2_to_imgmsg(decimg)
+        ser_msg = _rclpy.rclpy_serialize(img_msg, type(img_msg))
+        debug_pub.put(ser_msg) #only put the image
 
     qr_code_to_track = get_biggest_qr_code_matching(qr_codes, qr_data_to_track)
 
@@ -146,6 +157,11 @@ def listener(sample: Sample):
 
 print(f"Declaring Publisher on '{pub_key}'...")
 pub = session.declare_publisher(pub_key)
+
+debug_pub = None
+if debug_mode_on:
+    print(f"Declaring image debug Publisher on '{debug_pub_key}'...")
+    debug_pub = session.declare_publisher(debug_pub_key)
 
 print("Declaring Subscriber on '{}'...".format(sub_key))
 # WARNING, you MUST store the return value in order for the subscription to work!!
