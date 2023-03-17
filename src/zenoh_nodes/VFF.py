@@ -28,7 +28,10 @@ class VFF:
 
     def get_atr_force(self):
         obj_x, obj_y, obj_z = self.objetive
-        self.atr_force = (-math.asin(obj_x / obj_z), 1/obj_z if obj_z > 0.0 else 0.0)
+        #self.atr_force = (-math.asin(obj_x / obj_z), 1/obj_z if obj_z > 0.0 else 0.0)
+        #obj_x is in between [-1, 1] -> [-90, 90]
+        max_rad = math.radians(90)
+        self.atr_force = (-obj_x * max_rad, 1/obj_z if obj_z > 0.0 else 0.0)
         return self.atr_force
 
     def get_tot_force(self, kp_r, kp_a): #sum up both forces having into account weights

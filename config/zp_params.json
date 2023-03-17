@@ -18,9 +18,9 @@
         },
     "zenoh-python_sink_motors":
         {
-            "sub_key": "rt/centroid/rel_pos",
+            "sub_key": "rt/total_force",
             "pub_key": "rt/cmd_vel",
-            "only_rotation_mode": false,
+            "only_rotation_mode": true,
             "only_display_mode": false,
             "goal_x_dist": 0.0,
             "goal_pix_diag": 160.0,
@@ -34,6 +34,7 @@
         {
             "lidar_sub_key": "rt/scan",
             "centroid_sub_key": "rt/centroid/rel_pos",
-            "pub_key": "rt/markers/forces"
+            "markers_pub_key": "rt/markers/forces",
+            "force_pub_key": "rt/total_force"
         }
 }

@@ -77,7 +77,8 @@ f.close()
 
 lidar_sub_key = params["lidar_sub_key"]
 centroid_sub_key = params["centroid_sub_key"]
-pub_key = params["pub_key"]
+markers_pub_key = params["markers_pub_key"]
+total_force_pub_key = params["force_pub_key"]
 
 # --- Some function definitions --- --- --- --- --- ---
 import numpy as np # Scientific computing library for Python
@@ -136,9 +137,11 @@ lidar_sub = session.declare_subscriber(lidar_sub_key, lidar_listener, reliabilit
 print("Declaring Subscriber on '{}'...".format(centroid_sub_key))
 centroid_sub = session.declare_subscriber(centroid_sub_key, centroid_listener, reliability=Reliability.RELIABLE())
 
-print(f"Declaring Publisher on '{pub_key}'...")
-pub = session.declare_publisher(pub_key)
+print(f"Declaring Publisher on '{markers_pub_key}'...")
+markers_pub = session.declare_publisher(markers_pub_key)
 
+print(f"Declaring Publisher on '{total_force_pub_key}'...")
+total_force_pub = session.declare_publisher(total_force_pub_key)
 
 def get_marker(frame_id, position, orientation, scale, color, alpha=1.0, stamp=Clock().now().to_msg(), ns="marker_namespace", id=0, type=Marker.ARROW, action=Marker.ADD):
     marker = Marker()
@@ -165,14 +168,19 @@ def main():
     inc = 0.1
     while True:
         virtual_filed_force = VFF(laser_scan_msg, objetive=centroid_msg)
-        kp_r, kp_a = 1/300, 100
+        kp_r, kp_a = 1/1000, 400
         rep_theta, rep_r = virtual_filed_force.get_rep_force()
         atr_theta, atr_r = virtual_filed_force.get_atr_force()
         tot_theta, tot_r = virtual_filed_force.get_tot_force(kp_r, kp_a)
-        print("atr: ", atr_theta, atr_r)
-        print("rep: ", rep_theta, rep_r)
+        print("rep: ", rep_theta, kp_r * rep_r)
+        print("atr: ", atr_theta, kp_a * atr_r)
         print("tot: ", tot_theta, tot_r)
 
+        tot_force_msg = [tot_theta, tot_r]
+        buf = struct.pack('%sf' % len(tot_force_msg), *tot_force_msg)
+        print(f"Publishing: {tot_force_msg}")
+        total_force_pub.put(buf)
+        
         marker_array = MarkerArray()
         marker_array.markers = []
 
@@ -210,7 +218,7 @@ def main():
         
         print("zenoh publishing marker")
         ser_msg = _rclpy.rclpy_serialize(marker_array, type(marker_array))
-        pub.put(ser_msg)
+        markers_pub.put(ser_msg)
 
         time.sleep(1e-2)
         
@@ -221,7 +229,8 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         # Cleanup: note that even if you forget it, cleanup will happen automatically when 
         # the reference counter reaches 0
-        pub.undeclare()
+        markers_pub.undeclare()
+        total_force_pub.undeclare()
         lidar_sub.undeclare()
         centroid_sub.undeclare()
         session.close()

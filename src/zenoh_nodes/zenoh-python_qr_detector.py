@@ -98,8 +98,13 @@ def get_biggest_qr_code_matching(qr_codes, data):
             biggest_code = qr_code
     return biggest_code
 
+def get_time_ms():
+    return time.time() * 1e3 # get the number of milliseconds after epoch.
 
+last_msg = [0.0, 0.0, -1.0]
+last_time = get_time_ms()
 def listener(sample: Sample):
+    global last_msg, last_time
     encimg = np.frombuffer(sample.payload, dtype=np.uint8)
     decimg = cv2.imdecode(encimg, 1)
     print(f"received image of size {decimg.size} and shape: {decimg.shape}")
@@ -137,13 +142,17 @@ def listener(sample: Sample):
     qr_code_to_track = get_biggest_qr_code_matching(qr_codes, qr_data_to_track)
 
     #Sending a list of floats serialized:
-    qr_msg = [0.0, 0.0, -1.0]
-    if qr_code_to_track != None:
-        qr_msg = qr_code_to_track.get_centroid_rel()
-        qr_msg.append(qr_code_to_track.get_diag_avg_size())
-    
-    buf = struct.pack('%sf' % len(qr_msg), *qr_msg)
-    print(f"Publishing: {qr_msg}")
+    if qr_code_to_track != None: #if QR code detected, last msg is modified and sent
+        qr_x, qr_y = qr_code_to_track.get_centroid_rel()
+        last_msg = [qr_x, qr_y, qr_code_to_track.get_diag_avg_size()]
+        last_time = get_time_ms()
+    elif get_time_ms() - last_time >= 3000: # else if 3s passed from the last QR seen
+        last_msg = [0.0, 0.0, -1.0]
+    #TODO: maybe we can only publish when seeing and after 3s of not seing any code.
+    #TODO: get the 3s from parameters
+
+    buf = struct.pack('%sf' % len(last_msg), *last_msg)
+    print(f"Publishing: {last_msg}")
     pub.put(buf)
 
     #Other way is sending a json string format serialized:

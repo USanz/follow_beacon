@@ -124,20 +124,20 @@ session = zenoh.open(conf)
 
 check_for_type_support(Twist)
 
-message = [0.0, 0.0, -1.0]
+force_msg = [0.0, 0.0]
 def listener(sample: Sample):
-    global message
+    global force_msg
     #To receive the floats list:
-    #We know for sure that we'll receive a list with the centroid coordinates (x, y)
-    #and the diagonal size of the QR code, so the total lenght of the list is 3:
-    array_length = 3
-    message = struct.unpack('%sf' % array_length, sample.payload) # bytes to tuple
+    #We know for sure that we'll receive a list with a force/vector in polar
+    #coordinates, so the lenght of the list is 2:
+    array_length = 2
+    force_msg = struct.unpack('%sf' % array_length, sample.payload) # bytes to tuple
     
     #Other way is to receive the json format string:
     #buf = sample.payload.decode('utf-8') #bytes to str
     #print(json.loads(buf))
     
-    #print(message)
+    #print(force_msg)
 
 print(f"Declaring Publisher on '{pub_key}'...")
 pub = session.declare_publisher(pub_key)
@@ -158,8 +158,27 @@ def main():
     global target_lost_ts
 
     while True:
-        #print(message)
-        qr_x, qr_y, qr_avg_diag_size = message
+        #print(force_msg)
+        theta, r = force_msg # polar coordinates
+        wanted_v, wanted_w = 0.0, 0.0
+
+        if not only_display_mode:
+            wanted_w = kp_w * theta
+            if not only_rotation_mode:
+                wanted_v = kp_v * r
+
+        cmd_vel_msg = get_twist_msg()
+        cmd_vel_msg.linear.x = wanted_v
+        cmd_vel_msg.angular.z = wanted_w
+
+        print(f"Sending vels [v, w]: [{cmd_vel_msg.linear.x}, {cmd_vel_msg.angular.z}]")
+        publish(cmd_vel_msg)
+
+        #TODO: timeout to rotate after 3s
+
+
+        """
+        qr_x, qr_y, qr_avg_diag_size = force_msg
         
         cmd_vel_msg = get_twist_msg()
 
@@ -184,6 +203,7 @@ def main():
         print(f"Calculated vels [v, w]: [{wanted_v}, {wanted_w}] Sending vels [v, w]: [{cmd_vel_msg.linear.x}, {cmd_vel_msg.angular.z}]")
 
         publish(cmd_vel_msg)
+        """
 
         time.sleep(1e-2)
 
