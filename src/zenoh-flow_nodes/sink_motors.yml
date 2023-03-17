@@ -1,0 +1,7 @@
+id: sink_motors
+uri: file:///home/usanz/zs_t3/t3_ws/src/follow_beacon/src/zenoh-flow_nodes/sink_motors.py
+
+inputs:
+  - id: QR_Data
+    type: list
+tags: []

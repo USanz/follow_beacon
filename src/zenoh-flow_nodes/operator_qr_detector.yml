@@ -1,0 +1,10 @@
+id: operator_qr_detector
+uri: file:///home/usanz/zs_t3/t3_ws/src/follow_beacon/src/zenoh-flow_nodes/operator_qr_detector.py
+
+inputs:
+  - id: Image
+    type: image_compressed
+outputs:
+  - id: QR_Data
+    type: list
+tags: []
