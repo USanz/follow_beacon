@@ -32,7 +32,8 @@
         },
     "zenoh-python_lidar_vff":
         {
-            "sub_key": "rt/scan",
+            "lidar_sub_key": "rt/scan",
+            "centroid_sub_key": "rt/centroid/rel_pos",
             "pub_key": "rt/markers/forces"
         }
 }

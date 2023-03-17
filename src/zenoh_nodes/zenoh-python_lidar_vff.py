@@ -27,7 +27,6 @@ from sensor_msgs.msg import LaserScan
 from VFF import VFF
 
 from visualization_msgs.msg import Marker, MarkerArray
-from rclpy.clock import Clock
 import rclpy
 
 #include <tf2/LinearMath/Quaternion.h>
@@ -76,7 +75,8 @@ f = open(args.params_file)
 params = json.load(f)["zenoh-python_lidar_vff"]
 f.close()
 
-sub_key = params["sub_key"]
+lidar_sub_key = params["lidar_sub_key"]
+centroid_sub_key = params["centroid_sub_key"]
 pub_key = params["pub_key"]
 
 # --- Some function definitions --- --- --- --- --- ---
@@ -117,25 +117,24 @@ check_for_type_support(Marker)
 check_for_type_support(MarkerArray)
 
 laser_scan_msg = LaserScan()
-def listener(sample: Sample):
+def lidar_listener(sample: Sample):
     global laser_scan_msg
     laser_scan_msg = _rclpy.rclpy_deserialize(sample.payload, LaserScan)
-    #print(laser_scan_msg)
-    #laser = VFF(laser_scan_msg)
-    #print(laser_scan_msg)
-    #print(laser_scan_msg.range_min)
-    #print(laser_scan_msg.range_max)
-    #print(laser_scan_msg.ranges)
-    #ranges = list(laser_scan_msg.ranges)
-    #print(len(laser_scan_msg.ranges))
-    #print(list(laser_scan_msg.ranges)[180])
 
+centroid_msg = [0.0, 0.0, -1.0]
+def centroid_listener(sample: Sample):
+    global centroid_msg
+    array_length = 3
+    centroid_msg = struct.unpack('%sf' % array_length, sample.payload) # bytes to tuple
 
-print("Declaring Subscriber on '{}'...".format(sub_key))
+print("Declaring Subscriber on '{}'...".format(lidar_sub_key))
 # WARNING, you MUST store the return value in order for the subscription to work!!
 # This is because if you don't, the reference counter will reach 0 and the subscription
 # will be immediately undeclared.
-sub = session.declare_subscriber(sub_key, listener, reliability=Reliability.RELIABLE())
+lidar_sub = session.declare_subscriber(lidar_sub_key, lidar_listener, reliability=Reliability.RELIABLE())
+
+print("Declaring Subscriber on '{}'...".format(centroid_sub_key))
+centroid_sub = session.declare_subscriber(centroid_sub_key, centroid_listener, reliability=Reliability.RELIABLE())
 
 print(f"Declaring Publisher on '{pub_key}'...")
 pub = session.declare_publisher(pub_key)
@@ -165,78 +164,55 @@ def main():
     w = 0.1
     inc = 0.1
     while True:
-        virtual_filed_force = VFF(laser_scan_msg, objetive=[0, 0, 0])
+        virtual_filed_force = VFF(laser_scan_msg, objetive=centroid_msg)
+        kp_r, kp_a = 1/300, 100
         rep_theta, rep_r = virtual_filed_force.get_rep_force()
+        atr_theta, atr_r = virtual_filed_force.get_atr_force()
+        tot_theta, tot_r = virtual_filed_force.get_tot_force(kp_r, kp_a)
+        print("atr: ", atr_theta, atr_r)
+        print("rep: ", rep_theta, rep_r)
+        print("tot: ", tot_theta, tot_r)
 
         marker_array = MarkerArray()
         marker_array.markers = []
 
-        time.sleep(1e-2)
-
         #The main difference between them is that:
         #rclpy.time.Time() #this is the latest available transform in the buffer
+        #from rclpy.clock import Clock
         #Clock().now() # but this fetches the frame at the exact moment.
         #Thats the reason why with the last one doesn't work well.
+        markers_pos = [0.0, 0.0, 0.1]
         rep_force_marker = get_marker(id=0, frame_id="base_scan", ns="forces",
                                       stamp=rclpy.time.Time().to_msg(),
                                       type=Marker.ARROW, action=Marker.ADD,
-                                      position=[0.0, 0.0, 0.0],
+                                      position=markers_pos,
                                       orientation=[0.0, 0.0, rep_theta],
                                       scale=[rep_r/300, 0.05, 0.05],
-                                      color=[1.0, 1.0, 0.0], alpha=0.5)
-        marker_array.markers.append(rep_force_marker)
-
+                                      color=[1.0, 0.5, 0.0], alpha=0.5)
         atr_force_marker = get_marker(id=1, frame_id="base_scan", ns="forces",
                                       stamp=rclpy.time.Time().to_msg(),
                                       type=Marker.ARROW, action=Marker.ADD,
-                                      position=[0.0, 0.0, 0.0],
-                                      orientation=[0.0, 0.0, rep_theta],
-                                      scale=[-rep_r/300, 0.05, 0.05],
+                                      position=markers_pos,
+                                      orientation=[0.0, 0.0, atr_theta],
+                                      scale=[atr_r*100, 0.05, 0.05],
+                                      color=[0.5, 1.0, 0.0], alpha=0.5)
+        tot_force_marker = get_marker(id=2, frame_id="base_scan", ns="forces",
+                                      stamp=rclpy.time.Time().to_msg(),
+                                      type=Marker.ARROW, action=Marker.ADD,
+                                      position=markers_pos,
+                                      orientation=[0.0, 0.0, tot_theta],
+                                      scale=[tot_r, 0.05, 0.05],
                                       color=[0.0, 1.0, 1.0], alpha=0.5)
+        
+        marker_array.markers.append(rep_force_marker)
         marker_array.markers.append(atr_force_marker)
+        marker_array.markers.append(tot_force_marker)
         
-        """
-        #Test to viualize markers in rviz
-        bouncing_ball_marker = Marker()
-        marker_array.markers = []
-        bouncing_ball_marker.header.frame_id = "base_link"
-        bouncing_ball_marker.header.stamp = Clock().now().to_msg()
-        bouncing_ball_marker.ns = "my_namespace"
-        bouncing_ball_marker.id = 0
-        bouncing_ball_marker.type = Marker.SPHERE
-        bouncing_ball_marker.action = Marker.ADD
-        bouncing_ball_marker.pose.position.x = 1.0
-        bouncing_ball_marker.pose.position.y = 1.0
-        bouncing_ball_marker.pose.position.z = z
-        bouncing_ball_marker.pose.orientation.x = 0.0
-        bouncing_ball_marker.pose.orientation.y = 0.0
-        bouncing_ball_marker.pose.orientation.z = 0.0
-        bouncing_ball_marker.pose.orientation.w = 1.0
-        bouncing_ball_marker.scale.x = w/2
-        bouncing_ball_marker.scale.y = w/2
-        bouncing_ball_marker.scale.z = min(z, 0.5)
-        bouncing_ball_marker.color.a = 1.0
-        bouncing_ball_marker.color.r = 0.0
-        bouncing_ball_marker.color.g = 1.0
-        bouncing_ball_marker.color.b = 0.0
-        
-        time.sleep(3e-2)
-        if w >= 0.95:
-            inc = -0.1
-        if w < 0.11:
-            inc = 0.1
-        w += inc
-        z -= inc
-
-        #marker_array.markers.append(bouncing_ball_marker)
-        """
-
         print("zenoh publishing marker")
         ser_msg = _rclpy.rclpy_serialize(marker_array, type(marker_array))
         pub.put(ser_msg)
-        #for marker in marker_array.markers:
-        #    ser_msg = _rclpy.rclpy_serialize(marker, type(marker))
-        #    pub.put(ser_msg)
+
+        time.sleep(1e-2)
         
 
 if __name__ == "__main__":
@@ -245,6 +221,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         # Cleanup: note that even if you forget it, cleanup will happen automatically when 
         # the reference counter reaches 0
-        #pub.undeclare()
-        sub.undeclare()
+        pub.undeclare()
+        lidar_sub.undeclare()
+        centroid_sub.undeclare()
         session.close()

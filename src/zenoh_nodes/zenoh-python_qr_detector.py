@@ -180,5 +180,6 @@ while c != 'q':
 # Cleanup: note that even if you forget it, cleanup will happen automatically when 
 # the reference counter reaches 0
 pub.undeclare()
+debug_pub.undeclare()
 sub.undeclare()
 session.close()
