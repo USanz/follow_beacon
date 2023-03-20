@@ -1,6 +1,12 @@
 id: source_image
 uri: file:///home/usanz/zs_t3/t3_ws/src/follow_beacon/src/zenoh-flow_nodes/source_image.py
 
+configuration:
+  cam_num: 0
+  rate: 10
+  compression_quality: 10
+  img_resize_size: [640, 480]
+
 outputs:
   - id: Image
     type: image_compressed

@@ -2,6 +2,7 @@ from zenoh_flow.interfaces import Operator
 from zenoh_flow import Input, Output
 from zenoh_flow.types import Context
 from typing import Dict, Any
+import cv2, numpy as np
 
 actions_dict = {
     "w": 1, #forward
@@ -24,6 +25,7 @@ class OperatorQRDetector(Operator):
         self.output = outputs.get("QR_Data", None)
 
     def finalize(self) -> None:
+        cv2.destroyAllWindows()
         return None
 
     async def iteration(self) -> None:
@@ -32,7 +34,9 @@ class OperatorQRDetector(Operator):
         # or
         # https://docs.python.org/3/library/asyncio-task.html#asyncio.wait
         data_msg = await self.in_stream.recv()
-        new_value = int_from_bytes(data_msg.data)
+        new_value = img_from_bytes(data_msg.data)
+        cv2.imshow("window", new_value)
+        cv2.waitKey(10)
 
         #new_key_string = list(actions_dict.keys())[new_value - 1]
         
@@ -59,6 +63,12 @@ def int_to_bytes(x: int) -> bytes:
 
 def int_from_bytes(xbytes: bytes) -> int:
     return int.from_bytes(xbytes, "big")
+
+def img_from_bytes(xbytes: bytes) -> np.ndarray:
+    encimg = np.frombuffer(xbytes, dtype=np.uint8)
+    decimg = cv2.imdecode(encimg, 1)
+    print(f"received image of size {decimg.size} and shape: {decimg.shape}")
+    return decimg
 
 
 def str_to_bytes(string: str) -> bytes:
