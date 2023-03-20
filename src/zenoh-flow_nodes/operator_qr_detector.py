@@ -21,7 +21,7 @@ class OperatorQRDetector(Operator):
     ):
         print(f"Context: {context}")
         self.in_stream = inputs.get("Image", None)
-        self.output = outputs.get("QR_data", None)
+        self.output = outputs.get("QR_Data", None)
 
     def finalize(self) -> None:
         return None
