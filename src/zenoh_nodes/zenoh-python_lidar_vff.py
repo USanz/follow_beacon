@@ -12,7 +12,6 @@
 #   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 #
 
-import sys
 import time
 import argparse
 import json
@@ -27,6 +26,7 @@ from sensor_msgs.msg import LaserScan
 from VFF import VFF
 
 from visualization_msgs.msg import Marker, MarkerArray
+from builtin_interfaces.msg import Duration
 import rclpy
 
 from rclpy.clock import Clock
@@ -143,19 +143,21 @@ markers_pub = session.declare_publisher(markers_pub_key)
 print(f"Declaring Publisher on '{total_force_pub_key}'...")
 total_force_pub = session.declare_publisher(total_force_pub_key)
 
-def get_marker(frame_id, position, orientation, scale, color, alpha=1.0, stamp=Clock().now().to_msg(), ns="marker_namespace", id=0, type=Marker.ARROW, action=Marker.ADD):
+def get_marker(force_def_dict):
     marker = Marker()
-    marker.header.frame_id = frame_id
-    marker.header.stamp = stamp
-    marker.ns = ns
-    marker.id = id
-    marker.type = type
-    marker.action = action
-    marker.pose.position.x, marker.pose.position.y, marker.pose.position.z = position
-    marker.pose.orientation = get_quaternion_from_euler(orientation)
-    marker.scale.x, marker.scale.y, marker.scale.z = scale
-    marker.color.a = alpha
-    marker.color.r, marker.color.g, marker.color.b = color
+    #The main difference between them is that:
+    #marker.header.stamp = rclpy.time.Time().to_msg() #this is the latest available transform in the buffer
+    #marker.header.stamp = Clock().now().to_msg()# but this fetches the frame at the exact moment.
+    marker.header.frame_id = "base_scan"
+    marker.ns = force_def_dict["ns"]
+    marker.id = force_def_dict["id"]
+    marker.type = force_def_dict["type"]
+    marker.action = Marker.ADD
+    marker.lifetime = force_def_dict["lifetime"]
+    marker.pose.position.x, marker.pose.position.y, marker.pose.position.z = force_def_dict["position"]
+    marker.pose.orientation = get_quaternion_from_euler(force_def_dict["orientation"])
+    marker.scale.x, marker.scale.y, marker.scale.z = force_def_dict["scale"]
+    marker.color.r, marker.color.g, marker.color.b, marker.color.a = force_def_dict["color_rgba"]
     return marker
 
 
@@ -163,9 +165,6 @@ def get_marker(frame_id, position, orientation, scale, color, alpha=1.0, stamp=C
 # --- main code and logic --- --- --- --- --- ---
 def main():
     global laser_scan_msg
-    z = 1.0
-    w = 0.1
-    inc = 0.1
     while True:
         virtual_filed_force = VFF(laser_scan_msg, objetive=centroid_msg)
         kp_r, kp_a = 1/1000, 400
@@ -184,41 +183,31 @@ def main():
         marker_array = MarkerArray()
         marker_array.markers = []
 
-        #The main difference between them is that:
-        #rclpy.time.Time() #this is the latest available transform in the buffer
-        #from rclpy.clock import Clock
-        #Clock().now() # but this fetches the frame at the exact moment.
-        #Thats the reason why with the last one doesn't work well.
         markers_pos = [0.0, 0.0, 0.1]
-        rep_force_marker = get_marker(id=0, frame_id="base_scan", ns="forces",
-                                      stamp=rclpy.time.Time().to_msg(),
-                                      type=Marker.ARROW, action=Marker.ADD,
-                                      position=markers_pos,
-                                      orientation=[0.0, 0.0, rep_theta],
-                                      scale=[rep_r/300, 0.05, 0.05],
-                                      color=[1.0, 0.5, 0.0], alpha=0.5)
-        atr_force_marker = get_marker(id=1, frame_id="base_scan", ns="forces",
-                                      stamp=rclpy.time.Time().to_msg(),
-                                      type=Marker.ARROW, action=Marker.ADD,
-                                      position=markers_pos,
-                                      orientation=[0.0, 0.0, atr_theta],
-                                      scale=[atr_r*100, 0.05, 0.05],
-                                      color=[0.5, 1.0, 0.0], alpha=0.5)
-        tot_force_marker = get_marker(id=2, frame_id="base_scan", ns="forces",
-                                      stamp=rclpy.time.Time().to_msg(),
-                                      type=Marker.ARROW, action=Marker.ADD,
-                                      position=markers_pos,
-                                      orientation=[0.0, 0.0, tot_theta],
-                                      scale=[tot_r, 0.05, 0.05],
-                                      color=[0.0, 1.0, 1.0], alpha=0.5)
-        
-        marker_array.markers.append(rep_force_marker)
-        marker_array.markers.append(atr_force_marker)
-        marker_array.markers.append(tot_force_marker)
-        
-        print("zenoh publishing marker")
-        ser_msg = _rclpy.rclpy_serialize(marker_array, type(marker_array))
-        markers_pub.put(ser_msg)
+        rep_scale_factor, atr_scale_factor, tot_scale_factor = [1/300, 100, 1]
+        lt = Duration()
+        lt.sec = 0
+        lt.nanosec = int(0.3e9) # 0.3s
+        rep_force_dict = {"id":0, "ns":"repulsion force", "type":Marker.ARROW,
+                          "position":markers_pos, "orientation":[0.0, 0.0, rep_theta],
+                          "scale":[rep_r*rep_scale_factor, 0.05, 0.05],
+                          "color_rgba":[1.0, 0.5, 0.0, 0.5], "lifetime":lt}
+        atr_force_dict = {"id":1, "ns":"attraction force", "type":Marker.ARROW,
+                          "position":markers_pos, "orientation":[0.0, 0.0, atr_theta],
+                          "scale":[atr_r*atr_scale_factor, 0.05, 0.05],
+                          "color_rgba":[0.5, 1.0, 0.0, 0.5], "lifetime":lt}
+        tot_force_dict = {"id":2, "ns":"total force", "type":Marker.ARROW,
+                          "position":markers_pos, "orientation":[0.0, 0.0, tot_theta],
+                          "scale":[tot_r*tot_scale_factor, 0.05, 0.05],
+                          "color_rgba":[0.0, 1.0, 1.0, 0.5], "lifetime":lt}
+        for force_dict in [rep_force_dict, atr_force_dict, tot_force_dict]:
+            if force_dict["scale"][0] > 0.0:
+                marker_array.markers.append(get_marker(force_dict))
+
+        if marker_array.markers:
+            print("zenoh publishing markers")
+            ser_msg = _rclpy.rclpy_serialize(marker_array, type(marker_array))
+            markers_pub.put(ser_msg)
 
         time.sleep(1e-2)
         
