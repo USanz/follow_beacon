@@ -3,9 +3,9 @@ uri: file:///home/usanz/zs_t3/t3_ws/src/follow_beacon/src/zenoh-flow_nodes/sourc
 
 configuration:
   cam_num: 0
-  rate: 10
-  compression_quality: 10
+  rate: 15.0
   img_resize_size: [640, 480]
+  compression_quality: 50
 
 outputs:
   - id: Image
