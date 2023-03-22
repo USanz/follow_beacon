@@ -6,10 +6,6 @@ configuration:
   qr_code_detector: "zbar" # choose between "zbar" or "opencv"
   qr_data_to_track: "https://github.com/USanz/follow_beacon"
 
-inputs:
-  - id: Image
-    type: image_compressed
-outputs:
-  - id: QR_Data
-    type: list
+inputs: [Image]
+outputs: [QR_Data]
 tags: []

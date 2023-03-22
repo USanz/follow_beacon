@@ -90,9 +90,9 @@ class SinkMotors(Sink):
 
 
     def finalize(self): #not working for now
-        #stop_robot(self.pub)
-        #self.pub.undeclare()
-        #self.session.close()
+        stop_robot(self.pub)
+        self.pub.undeclare()
+        self.session.close()
         return None
 
 
@@ -121,6 +121,7 @@ def get_twist_msg(init_vels = []):
 
 def stop_robot(pub):
     cmd_vel_msg = get_twist_msg()
+    print("stoping robot...")
     publish(pub, cmd_vel_msg)
 
 def register():

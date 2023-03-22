@@ -6,7 +6,6 @@ import asyncio
 import cv2
 #from numpy import ndarray, empty, int8
 import numpy as np
-#from inspect import getmembers
 
 
 class SourceImage(Source):
@@ -47,10 +46,6 @@ class SourceImage(Source):
         return compressed_frame.tobytes()
 
     async def iteration(self) -> None:
-        #print(self.__dict__)
-        #print(self)
-        #print(type(self))
-
         await asyncio.sleep(1.0/self.rate)
         img = self.produce_data()
         if img != None:
@@ -58,18 +53,8 @@ class SourceImage(Source):
         return None
 
     def finalize(self) -> None: #This is bugged for the moment (it doesn't see the self attributes).
-        #print(getmembers(self))
-        #print(self.__dict__)
-        #print(self)
-        #print(type(self))
-
-        #self.camera.release()
-        #it outputs: AttributeError("type object 'SourceImage' has no attribute 'camera'")
+        self.camera.release()
         return None
-
-
-#def int_to_bytes(x: int) -> bytes:
-#    return x.to_bytes((x.bit_length() + 7) // 8, "big")
 
 def img_compress(img: np.ndarray, format: str, quality: int) -> np.ndarray:
     encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), int(quality)]

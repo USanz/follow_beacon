@@ -17,7 +17,5 @@ configuration:
   connect: ""
   listen: ""
 
-inputs:
-  - id: QR_Data
-    type: list
+inputs: [QR_Data]
 tags: []
