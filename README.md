@@ -1,7 +1,10 @@
 # Introduction
 
-This repository contains various ways to make a turtlebot3 follow a beacon (a QR code in this case).
-We can see the evolution from a ROS2 package to the use of other pub/sub protocol: Zenoh.
+This repository contains different ways to make a turtlebot3 follow a beacon, which in this cas is a QR code:
+ - ROS2 package, in which we can see the following evolution:
+   [color filter](https://github.com/USanz/follow_beacon/wiki/2.-Real-robot-color-follower) -> [QR code detector](https://github.com/USanz/follow_beacon/wiki/3.-Real-robot-QR-code-follower) -> [QR code detector using zenoh bridge](https://github.com/USanz/follow_beacon/wiki/3.-Real-robot-QR-code-follower#running-it-using-zenoh-zenoh-bridge-dds).
+ - [Zenoh nodes](https://github.com/USanz/follow_beacon/wiki/4.-Real-robot-QR-code-follower-using-Zenoh).
+ - [Zenoh-flow nodes](https://github.com/USanz/follow_beacon/wiki/5.-Real-robot-QR-code-follower-using-Zenoh-flow).
 
 There's more information about this project and how to run it in the [getting started section](#getting-started)
 
