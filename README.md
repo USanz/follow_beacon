@@ -46,4 +46,4 @@ More information about the process to run the nodes in the [wiki](https://github
 
 Feel free to use this QR code to test:
 
-![QR code](./qr_code.png)
+![QR code](doc/qr_code.png)
