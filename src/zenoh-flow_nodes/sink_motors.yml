@@ -4,7 +4,7 @@ uri: file:///home/usanz/zs_t3/t3_ws/src/follow_beacon/src/zenoh-flow_nodes/sink_
 configuration:
   zenoh_config_file: ""
   pub_key: "rt/cmd_vel"
-  only_rotation_mode: false
+  only_rotation_mode: true
   only_display_mode: false
   goal_x_dist: 0.0
   goal_pix_diag: 160.0
@@ -17,5 +17,5 @@ configuration:
   connect: ""
   listen: ""
 
-inputs: [QR_Data]
+inputs: [Force]
 tags: []

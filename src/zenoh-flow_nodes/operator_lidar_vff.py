@@ -1,0 +1,164 @@
+from zenoh_flow.interfaces import Operator
+from zenoh_flow import Input, Output
+from zenoh_flow.types import Context
+from typing import Dict, Any
+import numpy as np
+
+import json, time
+
+import zenoh
+from zenoh import Reliability, Sample
+
+import struct
+from rclpy.impl.implementation_singleton import rclpy_implementation as _rclpy
+from rclpy.type_support import check_for_type_support
+from sensor_msgs.msg import LaserScan
+from visualization_msgs.msg import Marker, MarkerArray
+from builtin_interfaces.msg import Duration
+from geometry_msgs.msg import Quaternion
+
+import sys, os, inspect
+currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+parentdir = os.path.dirname(currentdir)
+sys.path.insert(0, parentdir)
+from zenoh_nodes.VFF import VFF
+
+class OperatorLidarVFF(Operator):
+    def __init__(
+        self,
+        context: Context,
+        configuration: Dict[str, Any],
+        inputs: Dict[str, Input],
+        outputs: Dict[str, Output],
+    ):
+        self.input = inputs.get("QR_Data", None)
+        self.output = outputs.get("Force", None)
+
+        check_for_type_support(LaserScan)
+        check_for_type_support(Marker)
+        check_for_type_support(MarkerArray)
+
+        configuration = {} if configuration is None else configuration
+
+        zenoh_config_file = str(configuration.get("zenoh_config_file", ""))
+        mode = str(configuration.get("mode", ""))
+        connect = str(configuration.get("connect", ""))
+        listen = str(configuration.get("listen", ""))
+        conf = zenoh.Config.from_file(
+            zenoh_config_file) if zenoh_config_file != "" else zenoh.Config()
+        if mode != "":
+            conf.insert_json5(zenoh.config.MODE_KEY, json.dumps(mode))
+        if connect != "":
+            conf.insert_json5(zenoh.config.CONNECT_KEY, json.dumps(connect))
+        if listen != "":
+            conf.insert_json5(zenoh.config.LISTEN_KEY, json.dumps(listen))
+        self.session = zenoh.open(conf)
+        
+        lidar_sub_key = str(configuration.get("lidar_sub_key", "rt/scan"))
+        markers_pub_key = str(configuration.get("markers_pub_key", "rt/markers/forces"))
+        self.laser_scan_msg = LaserScan()
+        self.centroid_msg = [0.0, 0.0, -1.0]
+        self.VFF = VFF(self.laser_scan_msg, self.centroid_msg)
+        self.lidar_sub = self.session.declare_subscriber(lidar_sub_key, self.lidar_callback, reliability=Reliability.RELIABLE())
+        self.markers_pub = self.session.declare_publisher(markers_pub_key)
+
+    def lidar_callback(self, sample: Sample):
+        self.laser_scan_msg = _rclpy.rclpy_deserialize(sample.payload, LaserScan)
+
+    async def iteration(self) -> None:
+        data_msg = await self.input.recv()
+        array_length = 3
+        self.centroid_msg = struct.unpack('%sf' % array_length, data_msg.data) # bytes to tuple
+        
+        self.VFF = VFF(self.laser_scan_msg, objetive=self.centroid_msg)
+        kp_r, kp_a = 1/1000, 400
+        rep_theta, rep_r = self.VFF.get_rep_force()
+        atr_theta, atr_r = self.VFF.get_atr_force()
+        tot_theta, tot_r = self.VFF.get_tot_force(kp_r, kp_a)
+        print("rep: ", rep_theta, kp_r * rep_r)
+        print("atr: ", atr_theta, kp_a * atr_r)
+        print("tot: ", tot_theta, tot_r)
+
+        tot_force_msg = [tot_theta, tot_r]
+        buf = struct.pack('%sf' % len(tot_force_msg), *tot_force_msg)
+        print(f"Publishing: {tot_force_msg}")
+        self.markers_pub.put(buf)
+
+        marker_array = MarkerArray()
+        marker_array.markers = []
+
+        markers_pos = [0.0, 0.0, 0.1]
+        rep_scale_factor, atr_scale_factor, tot_scale_factor = [1/300, 100, 1]
+        lt = Duration()
+        lt.sec = 0
+        lt.nanosec = int(0.3e9) # 0.3s
+        rep_force_dict = {"id":0, "ns":"repulsion force", "type":Marker.ARROW,
+                          "position":markers_pos, "orientation":[0.0, 0.0, rep_theta],
+                          "scale":[rep_r*rep_scale_factor, 0.05, 0.05],
+                          "color_rgba":[1.0, 0.5, 0.0, 0.5], "lifetime":lt}
+        atr_force_dict = {"id":1, "ns":"attraction force", "type":Marker.ARROW,
+                          "position":markers_pos, "orientation":[0.0, 0.0, atr_theta],
+                          "scale":[atr_r*atr_scale_factor, 0.05, 0.05],
+                          "color_rgba":[0.5, 1.0, 0.0, 0.5], "lifetime":lt}
+        tot_force_dict = {"id":2, "ns":"total force", "type":Marker.ARROW,
+                          "position":markers_pos, "orientation":[0.0, 0.0, tot_theta],
+                          "scale":[tot_r*tot_scale_factor, 0.05, 0.05],
+                          "color_rgba":[0.0, 1.0, 1.0, 0.5], "lifetime":lt}
+        for force_dict in [rep_force_dict, atr_force_dict, tot_force_dict]:
+            if force_dict["scale"][0] > 0.0:
+                marker_array.markers.append(get_marker(force_dict))
+
+        if marker_array.markers:
+            print("zenoh publishing markers")
+            ser_msg = _rclpy.rclpy_serialize(marker_array, type(marker_array))
+            self.markers_pub.put(ser_msg)
+
+        time.sleep(1e-2)
+
+    def finalize(self) -> None:
+        self.markers_pub.undeclare()
+        self.lidar_sub.undeclare()
+        self.session.close()
+        return None
+
+
+def get_quaternion_from_euler(rpy : list):
+  """
+  Convert an Euler angle to a quaternion.
+   
+  Input
+    :param roll: The roll (rotation around x-axis) angle in radians.
+    :param pitch: The pitch (rotation around y-axis) angle in radians.
+    :param yaw: The yaw (rotation around z-axis) angle in radians.
+ 
+  Output
+    :return qx, qy, qz, qw: The orientation in quaternion [x,y,z,w] format
+  """
+  roll, pitch, yaw = rpy
+  qx = np.sin(roll/2) * np.cos(pitch/2) * np.cos(yaw/2) - np.cos(roll/2) * np.sin(pitch/2) * np.sin(yaw/2)
+  qy = np.cos(roll/2) * np.sin(pitch/2) * np.cos(yaw/2) + np.sin(roll/2) * np.cos(pitch/2) * np.sin(yaw/2)
+  qz = np.cos(roll/2) * np.cos(pitch/2) * np.sin(yaw/2) - np.sin(roll/2) * np.sin(pitch/2) * np.cos(yaw/2)
+  qw = np.cos(roll/2) * np.cos(pitch/2) * np.cos(yaw/2) + np.sin(roll/2) * np.sin(pitch/2) * np.sin(yaw/2)
+ 
+  return Quaternion(x=qx, y=qy, z=qz, w=qw)
+
+def get_marker(force_def_dict):
+    marker = Marker()
+    #The main difference between them is that:
+    #marker.header.stamp = rclpy.time.Time().to_msg() #this is the latest available transform in the buffer
+    #marker.header.stamp = Clock().now().to_msg()# but this fetches the frame at the exact moment.
+    marker.header.frame_id = "base_scan"
+    marker.ns = force_def_dict["ns"]
+    marker.id = force_def_dict["id"]
+    marker.type = force_def_dict["type"]
+    marker.action = Marker.ADD
+    marker.lifetime = force_def_dict["lifetime"]
+    marker.pose.position.x, marker.pose.position.y, marker.pose.position.z = force_def_dict["position"]
+    marker.pose.orientation = get_quaternion_from_euler(force_def_dict["orientation"])
+    marker.scale.x, marker.scale.y, marker.scale.z = force_def_dict["scale"]
+    marker.color.r, marker.color.g, marker.color.b, marker.color.a = force_def_dict["color_rgba"]
+    return marker
+
+
+def register():
+    return OperatorLidarVFF

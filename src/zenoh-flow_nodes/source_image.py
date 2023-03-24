@@ -81,8 +81,8 @@ class SourceImage(Source):
         await self.output.send(self.img)
         return None
 
-    def finalize(self) -> None: #This is bugged for the moment (it doesn't see the self attributes).
-        #self.camera.release()
+    def finalize(self) -> None:
+        self.camera.release()
         self.cam_sub.undeclare()
         self.session.close()
         return None
