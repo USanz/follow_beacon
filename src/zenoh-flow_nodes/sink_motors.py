@@ -89,8 +89,9 @@ class SinkMotors(Sink):
         time.sleep(1e-2)
 
 
-    def finalize(self): #not working for now
+    def finalize(self):
         stop_robot(self.pub)
+        time.sleep(1)
         self.pub.undeclare()
         self.session.close()
         return None

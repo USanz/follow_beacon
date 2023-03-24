@@ -1,0 +1,37 @@
+flow: qr_follower
+
+vars:
+  BASE_DIR_PATH: file:///home/usanz/zs_t3/t3_ws/src/follow_beacon/src/zenoh-flow_nodes
+
+#configuration:
+#  locator: 'tcp/127.0.0.1:7447'
+#  mode: client
+
+sources:
+  - id : source_image
+    descriptor : "{{ BASE_DIR_PATH }}/source_image_robot.yml"
+operators:
+  - id : operator_qr_detector
+    descriptor : "{{ BASE_DIR_PATH }}/operator_qr_detector.yml"
+sinks:
+  - id : sink_motors
+    descriptor : "{{ BASE_DIR_PATH }}/sink_motors.yml"
+
+links:
+- from:
+    node : source_image
+    output : Image
+  to:
+    node : operator_qr_detector
+    input : Image
+- from:
+    node : operator_qr_detector
+    output : QR_Data
+  to:
+    node : sink_motors
+    input : QR_Data
+
+mapping:
+  source_image: turtlebot3
+  operator_qr_detector: computer
+  sink_motors: computer
