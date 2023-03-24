@@ -166,11 +166,11 @@ def get_marker(force_def_dict):
 def main():
     global laser_scan_msg
     while True:
-        virtual_filed_force = VFF(laser_scan_msg, objetive=centroid_msg)
+        virtual_field_force = VFF(laser_scan_msg, objetive=centroid_msg)
         kp_r, kp_a = 1/1000, 400
-        rep_theta, rep_r = virtual_filed_force.get_rep_force()
-        atr_theta, atr_r = virtual_filed_force.get_atr_force()
-        tot_theta, tot_r = virtual_filed_force.get_tot_force(kp_r, kp_a)
+        rep_theta, rep_r = virtual_field_force.get_rep_force()
+        atr_theta, atr_r = virtual_field_force.get_atr_force()
+        tot_theta, tot_r = virtual_field_force.get_tot_force(kp_r, kp_a)
         print("rep: ", rep_theta, kp_r * rep_r)
         print("atr: ", atr_theta, kp_a * atr_r)
         print("tot: ", tot_theta, tot_r)
