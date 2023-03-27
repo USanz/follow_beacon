@@ -12,14 +12,15 @@
             "sub_key": "rt/camera/image_compressed",
             "pub_key": "rt/centroid/rel_pos",
             "qr_code_detector": "zbar",
-            "display_gui": false,
+            "debug_mode_on": true,
+            "img_debug_pub_key": "rt/debug/image/qr_codes",
             "qr_data_to_track": "https://github.com/USanz/follow_beacon"
         },
     "zenoh-python_sink_motors":
         {
-            "sub_key": "rt/centroid/rel_pos",
+            "sub_key": "rt/total_force",
             "pub_key": "rt/cmd_vel",
-            "only_rotation_mode": false,
+            "only_rotation_mode": true,
             "only_display_mode": false,
             "goal_x_dist": 0.0,
             "goal_pix_diag": 160.0,
@@ -28,5 +29,12 @@
             "kp_w": 0.35,
             "kp_v": 0.005,
             "target_lost_timeout": 3000
+        },
+    "zenoh-python_lidar_vff":
+        {
+            "lidar_sub_key": "rt/scan",
+            "centroid_sub_key": "rt/centroid/rel_pos",
+            "markers_pub_key": "rt/markers/forces",
+            "force_pub_key": "rt/total_force"
         }
 }

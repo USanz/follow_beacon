@@ -1,0 +1,21 @@
+id: sink_motors
+uri: file:///home/usanz/zs_t3/t3_ws/src/follow_beacon/src/zenoh-flow_nodes/sink_motors.py
+
+configuration:
+  zenoh_config_file: ""
+  pub_key: "rt/cmd_vel"
+  only_rotation_mode: false
+  only_display_mode: false
+  goal_x_dist: 0.0
+  goal_pix_diag: 160.0
+  goal_x_threshold: 0.10
+  goal_pix_diag_threshold: 0.05
+  kp_w: 0.35
+  kp_v: 0.005
+  target_lost_timeout: 3000
+  mode: ""
+  connect: ""
+  listen: ""
+
+inputs: [QR_Data]
+tags: []

@@ -1,0 +1,11 @@
+id: operator_qr_detector
+uri: file:///home/usanz/zs_t3/t3_ws/src/follow_beacon/src/zenoh-flow_nodes/operator_qr_detector.py
+
+configuration:
+  display_gui: true
+  qr_code_detector: "zbar" # choose between "zbar" or "opencv"
+  qr_data_to_track: "https://github.com/USanz/follow_beacon"
+
+inputs: [Image]
+outputs: [QR_Data]
+tags: []
