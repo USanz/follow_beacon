@@ -13,9 +13,13 @@ sources:
 operators:
   - id : operator_qr_detector
     descriptor : "{{ BASE_DIR_PATH }}/operator_qr_detector.yml"
+  - id : operator_driver
+    descriptor : "{{ BASE_DIR_PATH }}/operator_driver.yml"
 sinks:
   - id : sink_motors
-    descriptor : "{{ BASE_DIR_PATH }}/sink_motors.yml"
+    configuration:
+      Twist: rt/cmd_vel
+    descriptor : "builtin://zenoh"
 
 links:
 - from:
@@ -28,10 +32,17 @@ links:
     node : operator_qr_detector
     output : QR_Data
   to:
-    node : sink_motors
+    node : operator_driver
     input : QR_Data
+- from:
+    node : operator_driver
+    output : Twist
+  to:
+    node : sink_motors
+    input : Twist
 
 mapping:
   source_image: turtlebot3
   operator_qr_detector: computer
+  operator_driver: computer
   sink_motors: computer

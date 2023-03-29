@@ -1,5 +1,5 @@
-id: sink_motors
-uri: file:///home/usanz/zs_t3/t3_ws/src/follow_beacon/src/zenoh-flow_nodes/sink_motors.py
+id: operator_driver
+uri: file:///home/usanz/zs_t3/t3_ws/src/follow_beacon/src/zenoh-flow_nodes/operator_driver.py
 
 configuration:
   zenoh_config_file: ""
@@ -18,4 +18,5 @@ configuration:
   listen: ""
 
 inputs: [QR_Data]
+outputs: [Twist]
 tags: []

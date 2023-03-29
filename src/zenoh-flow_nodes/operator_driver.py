@@ -1,25 +1,25 @@
-from zenoh_flow.interfaces import Sink
-from zenoh_flow import Input
+from zenoh_flow.interfaces import Operator
+from zenoh_flow import Input, Output
 from zenoh_flow.types import Context
 from typing import Dict, Any
-import asyncio
-import struct, time, json
+import struct, time
 
-import zenoh
 
 from rclpy.impl.implementation_singleton import rclpy_implementation as _rclpy
 from rclpy.type_support import check_for_type_support
 from geometry_msgs.msg import Twist
 
 
-class SinkMotors(Sink):
+class OperatorDriver(Operator):
     def __init__(
         self,
         context: Context,
         configuration: Dict[str, Any],
         inputs: Dict[str, Input],
+        outputs: Dict[str, Output],
     ):
         self.input = inputs.get("QR_Data", None)
+        self.output = outputs.get("Twist", None)
 
         configuration = {} if configuration is None else configuration
         
@@ -35,23 +35,6 @@ class SinkMotors(Sink):
 
         self.target_lost_timeout = int(configuration.get("target_lost_timeout", 3000))
         self.target_lost_ts = get_time_ms()
-
-        zenoh_config_file = str(configuration.get("zenoh_config_file", ""))
-        mode = str(configuration.get("mode", ""))
-        connect = str(configuration.get("connect", ""))
-        listen = str(configuration.get("listen", ""))
-        conf = zenoh.Config.from_file(
-            zenoh_config_file) if zenoh_config_file != "" else zenoh.Config()
-        if mode != "":
-            conf.insert_json5(zenoh.config.MODE_KEY, json.dumps(mode))
-        if connect != "":
-            conf.insert_json5(zenoh.config.CONNECT_KEY, json.dumps(connect))
-        if listen != "":
-            conf.insert_json5(zenoh.config.LISTEN_KEY, json.dumps(listen))
-        self.session = zenoh.open(conf)
-        
-        pub_key = str(configuration.get("pub_key", "rt/cmd_vel"))
-        self.pub = self.session.declare_publisher(pub_key)
         
         check_for_type_support(Twist)
     
@@ -84,25 +67,28 @@ class SinkMotors(Sink):
 
         print(f"Calculated vels [v, w]: [{wanted_v}, {wanted_w}] Sending vels [v, w]: [{cmd_vel_msg.linear.x}, {cmd_vel_msg.angular.z}]")
 
-        publish(self.pub, cmd_vel_msg)
+        ser_msg = _rclpy.rclpy_serialize(cmd_vel_msg, type(cmd_vel_msg))
+        await self.output.send(ser_msg)
 
         time.sleep(1e-2)
 
 
     def finalize(self):
-        stop_robot(self.pub)
-        time.sleep(1)
-        self.pub.undeclare()
-        self.session.close()
         return None
+
+    async def publish(self, cmd_vel_msg):
+        ser_msg = _rclpy.rclpy_serialize(cmd_vel_msg, type(cmd_vel_msg))
+        #pub.put(ser_msg)
+        await self.output.send(ser_msg)
+
+    def stop_robot(self):
+        cmd_vel_msg = get_twist_msg()
+        print("stoping robot...")
+        self.publish(cmd_vel_msg)
 
 
 def get_time_ms():
     return time.time() * 1e3 # get the number of milliseconds after epoch.
-
-def publish(pub, cmd_vel_msg):
-    ser_msg = _rclpy.rclpy_serialize(cmd_vel_msg, type(cmd_vel_msg))
-    pub.put(ser_msg)
 
 def get_twist_msg(init_vels = []):
     twist_msg = Twist()
@@ -120,10 +106,6 @@ def get_twist_msg(init_vels = []):
 
     return twist_msg
 
-def stop_robot(pub):
-    cmd_vel_msg = get_twist_msg()
-    print("stoping robot...")
-    publish(pub, cmd_vel_msg)
 
 def register():
-    return SinkMotors
+    return OperatorDriver
