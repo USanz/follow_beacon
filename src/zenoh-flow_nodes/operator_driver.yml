@@ -17,6 +17,6 @@ configuration:
   connect: ""
   listen: ""
 
-inputs: [QR_Data]
+inputs: [Force]
 outputs: [Twist]
 tags: []

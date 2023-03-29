@@ -40,11 +40,28 @@ class OperatorDriver(Operator):
     
     async def iteration(self) -> None:
         data_msg = await self.input.recv()
-        array_length = 3
-        message = struct.unpack('%sf' % array_length, data_msg.data) # bytes to tuple
-        print(f"Received {message}")
+        array_length = 2
+        force_message = struct.unpack('%sf' % array_length, data_msg.data) # bytes to tuple
+        print(f"Received {force_message}")
 
-        qr_x, qr_y, qr_avg_diag_size = message
+        theta, r = force_message # polar coordinates
+        wanted_v, wanted_w = 0.0, 0.0
+
+        if not self.only_display_mode:
+            wanted_w = self.kp_w * theta
+            if not self.only_rotation_mode:
+                wanted_v = self.kp_v * r
+
+        cmd_vel_msg = get_twist_msg()
+        cmd_vel_msg.linear.x = wanted_v
+        cmd_vel_msg.angular.z = wanted_w
+
+        print(f"Sending vels [v, w]: [{cmd_vel_msg.linear.x}, {cmd_vel_msg.angular.z}]")
+
+        #TODO: timeout to rotate after 3s
+
+        """
+        qr_x, qr_y, qr_avg_diag_size = force_message
         cmd_vel_msg = get_twist_msg()
 
         error_x_dist = self.goal_x_dist - qr_x
@@ -66,7 +83,8 @@ class OperatorDriver(Operator):
                     cmd_vel_msg.angular.z = 0.1
 
         print(f"Calculated vels [v, w]: [{wanted_v}, {wanted_w}] Sending vels [v, w]: [{cmd_vel_msg.linear.x}, {cmd_vel_msg.angular.z}]")
-
+        """
+        
         ser_msg = _rclpy.rclpy_serialize(cmd_vel_msg, type(cmd_vel_msg))
         await self.output.send(ser_msg)
 
