@@ -10,15 +10,29 @@ vars:
 sources:
   - id : source_image
     descriptor : "{{ BASE_DIR_PATH }}/source_image_robot.yml"
+  - id : source_scan
+    configuration:
+      Scan: rt/scan
+    descriptor : "builtin://zenoh"
 operators:
   - id : operator_qr_detector
     descriptor : "{{ BASE_DIR_PATH }}/operator_qr_detector.yml"
+  - id : operator_lidar_vff
+    descriptor : "{{ BASE_DIR_PATH }}/operator_lidar_vff.yml"
   - id : operator_driver
     descriptor : "{{ BASE_DIR_PATH }}/operator_driver.yml"
 sinks:
   - id : sink_motors
     configuration:
       Twist: rt/cmd_vel
+    descriptor : "builtin://zenoh"
+  - id : sink_debug_markers
+    configuration:
+      Markers: rt/markers/forces
+    descriptor : "builtin://zenoh"
+  - id : sink_debug_image
+    configuration:
+      DebugImage: rt/debug/image/qr_codes
     descriptor : "builtin://zenoh"
 
 links:
@@ -28,12 +42,42 @@ links:
   to:
     node : operator_qr_detector
     input : Image
+
 - from:
     node : operator_qr_detector
     output : QR_Data
   to:
-    node : operator_driver
+    node : operator_lidar_vff
     input : QR_Data
+
+- from:
+    node : operator_qr_detector
+    output : DebugImage
+  to:
+    node : sink_debug_image
+    input : DebugImage
+
+- from:
+    node : source_scan
+    output : Scan
+  to:
+    node : operator_lidar_vff
+    input : Scan
+
+- from:
+    node : operator_lidar_vff
+    output : Force
+  to:
+    node : operator_driver
+    input : Force
+
+- from:
+    node : operator_lidar_vff
+    output : Markers
+  to:
+    node : sink_debug_markers
+    input : Markers
+
 - from:
     node : operator_driver
     output : Twist
@@ -43,6 +87,8 @@ links:
 
 mapping:
   source_image: turtlebot3
+  source_scan: turtlebot3
   operator_qr_detector: computer
+  operator_lidar_vff: computer
   operator_driver: computer
   sink_motors: computer

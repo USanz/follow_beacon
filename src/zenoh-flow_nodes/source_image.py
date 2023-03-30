@@ -24,9 +24,7 @@ class SourceImage(Source):
         self.cam_num = int(configuration.get("cam_num", 0))
         self.camera = cv2.VideoCapture(self.cam_num)
         if (not self.camera.isOpened()):
-            print("Error opening video stream or file")
-            return None
-            #TODO: is there any way to output an error and exit in zenoh-flow API?
+            raise Exception("Error opening video stream or file")
 
     def produce_data(self) -> bytes:
         #get frame:

@@ -18,7 +18,7 @@ class OperatorDriver(Operator):
         inputs: Dict[str, Input],
         outputs: Dict[str, Output],
     ):
-        self.input = inputs.get("QR_Data", None)
+        self.input = inputs.get("Force", None)
         self.output = outputs.get("Twist", None)
 
         configuration = {} if configuration is None else configuration
@@ -42,7 +42,7 @@ class OperatorDriver(Operator):
         data_msg = await self.input.recv()
         array_length = 2
         force_message = struct.unpack('%sf' % array_length, data_msg.data) # bytes to tuple
-        print(f"Received {force_message}")
+        #print(f"OPERATOR_DRIVER -> Received: {force_message}")
 
         theta, r = force_message # polar coordinates
         wanted_v, wanted_w = 0.0, 0.0
@@ -56,7 +56,7 @@ class OperatorDriver(Operator):
         cmd_vel_msg.linear.x = wanted_v
         cmd_vel_msg.angular.z = wanted_w
 
-        print(f"Sending vels [v, w]: [{cmd_vel_msg.linear.x}, {cmd_vel_msg.angular.z}]")
+        print(f"OPERATOR_DRIVER -> Sending vels [v, w]: [{cmd_vel_msg.linear.x}, {cmd_vel_msg.angular.z}]")
 
         #TODO: timeout to rotate after 3s
 
@@ -92,17 +92,21 @@ class OperatorDriver(Operator):
 
 
     def finalize(self):
+        #Not possible anymore as we are no longer using zenoh and msgs are not
+        #being sent in finalize() function:
+        #self.stop_robot()
+
         return None
 
-    async def publish(self, cmd_vel_msg):
-        ser_msg = _rclpy.rclpy_serialize(cmd_vel_msg, type(cmd_vel_msg))
-        #pub.put(ser_msg)
-        await self.output.send(ser_msg)
+    #async def publish(self, cmd_vel_msg):
+    #    ser_msg = _rclpy.rclpy_serialize(cmd_vel_msg, type(cmd_vel_msg))
+    #    #pub.put(ser_msg)
+    #    await self.output.send(ser_msg)
 
-    def stop_robot(self):
-        cmd_vel_msg = get_twist_msg()
-        print("stoping robot...")
-        self.publish(cmd_vel_msg)
+    #def stop_robot(self):
+    #    cmd_vel_msg = get_twist_msg()
+    #    print("stoping robot...")
+    #    self.publish(cmd_vel_msg)
 
 
 def get_time_ms():

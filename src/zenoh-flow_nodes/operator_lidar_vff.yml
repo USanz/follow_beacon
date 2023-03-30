@@ -1,11 +1,9 @@
 id: operator_lidar_vff
 uri: file:///home/usanz/zs_t3/t3_ws/src/follow_beacon/src/zenoh-flow_nodes/operator_lidar_vff.py
 
-configuration:
-  zenoh_config_file: ""
-  lidar_sub_key: "rt/scan"
-  markers_pub_key: "rt/markers/forces"
+#configuration:
+#  parameter_name: ""
 
-inputs: [QR_Data]
-outputs: [Force]
+inputs: [QR_Data, Scan]
+outputs: [Force, Markers]
 tags: []

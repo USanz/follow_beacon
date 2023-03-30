@@ -6,6 +6,8 @@ import numpy as np
 
 import json, time
 
+import asyncio
+
 import zenoh
 from zenoh import Reliability, Sample
 
@@ -31,8 +33,10 @@ class OperatorLidarVFF(Operator):
         inputs: Dict[str, Input],
         outputs: Dict[str, Output],
     ):
-        self.input = inputs.get("QR_Data", None)
-        self.output = outputs.get("Force", None)
+        self.input_qr = inputs.get("QR_Data", None)
+        self.input_scan = inputs.get("Scan", None)
+        self.output_force = outputs.get("Force", None)
+        self.output_markers = outputs.get("Markers", None)
 
         check_for_type_support(LaserScan)
         check_for_type_support(Marker)
@@ -40,49 +44,63 @@ class OperatorLidarVFF(Operator):
 
         configuration = {} if configuration is None else configuration
 
-        zenoh_config_file = str(configuration.get("zenoh_config_file", ""))
-        mode = str(configuration.get("mode", ""))
-        connect = str(configuration.get("connect", ""))
-        listen = str(configuration.get("listen", ""))
-        conf = zenoh.Config.from_file(
-            zenoh_config_file) if zenoh_config_file != "" else zenoh.Config()
-        if mode != "":
-            conf.insert_json5(zenoh.config.MODE_KEY, json.dumps(mode))
-        if connect != "":
-            conf.insert_json5(zenoh.config.CONNECT_KEY, json.dumps(connect))
-        if listen != "":
-            conf.insert_json5(zenoh.config.LISTEN_KEY, json.dumps(listen))
-        self.session = zenoh.open(conf)
-        
-        lidar_sub_key = str(configuration.get("lidar_sub_key", "rt/scan"))
-        markers_pub_key = str(configuration.get("markers_pub_key", "rt/markers/forces"))
-        self.laser_scan_msg = LaserScan()
-        self.centroid_msg = [0.0, 0.0, -1.0]
-        self.VFF = VFF(self.laser_scan_msg, self.centroid_msg)
-        self.lidar_sub = self.session.declare_subscriber(lidar_sub_key, self.lidar_callback, reliability=Reliability.RELIABLE())
-        self.markers_pub = self.session.declare_publisher(markers_pub_key)
+        self.scan_msg = LaserScan()
+        self.qr_msg = [0.0, 0.0, -1.0]
+        self.VFF = VFF(self.scan_msg, self.qr_msg)
+        self.pending = []
 
-    def lidar_callback(self, sample: Sample):
-        self.laser_scan_msg = _rclpy.rclpy_deserialize(sample.payload, LaserScan)
+    async def wait_qr(self):
+        data_msg = await self.input_qr.recv()
+        return ("QR", data_msg)
+
+    async def wait_scan(self):
+        data_msg = await self.input_scan.recv()
+        return ("Scan", data_msg)
+
+    def create_task_list(self):
+        task_list = [] + self.pending
+
+        if not any(t.get_name() == "QR" for t in task_list):
+            task_list.append(
+                asyncio.create_task(self.wait_qr(), name="QR")
+            )
+
+        if not any(t.get_name() == "Scan" for t in task_list):
+            task_list.append(
+                asyncio.create_task(self.wait_scan(), name="Scan")
+            )
+        return task_list
 
     async def iteration(self) -> None:
-        data_msg = await self.input.recv()
-        array_length = 3
-        self.centroid_msg = struct.unpack('%sf' % array_length, data_msg.data) # bytes to tuple
-        
-        self.VFF = VFF(self.laser_scan_msg, objetive=self.centroid_msg)
+        (done, pending) = await asyncio.wait(
+            self.create_task_list(),
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+
+        self.pending = list(pending)
+        for d in done:
+            (who, data_msg) = d.result()
+            if who == "QR":
+                #print("qr received")
+                array_length = 3
+                self.qr_msg = struct.unpack('%sf' % array_length, data_msg.data) # bytes to tuple
+            elif who == "Scan":
+                #print("scan received")
+                self.scan_msg = _rclpy.rclpy_deserialize(data_msg.data, type(data_msg.data))
+
+        self.VFF = VFF(self.scan_msg, objetive=self.qr_msg)
         kp_r, kp_a = 1/1000, 400
         rep_theta, rep_r = self.VFF.get_rep_force()
         atr_theta, atr_r = self.VFF.get_atr_force()
         tot_theta, tot_r = self.VFF.get_tot_force(kp_r, kp_a)
-        print("rep: ", rep_theta, kp_r * rep_r)
-        print("atr: ", atr_theta, kp_a * atr_r)
-        print("tot: ", tot_theta, tot_r)
+        #print("rep: ", rep_theta, kp_r * rep_r)
+        #print("atr: ", atr_theta, kp_a * atr_r)
+        #print("tot: ", tot_theta, tot_r)
 
         tot_force_msg = [tot_theta, tot_r]
         buf = struct.pack('%sf' % len(tot_force_msg), *tot_force_msg)
-        print(f"Publishing: {tot_force_msg}")
-        self.markers_pub.put(buf)
+        print(f"OPERATOR_LIDAR_VFF -> Sending force: {tot_force_msg}")
+        await self.output_force.send(buf)
 
         marker_array = MarkerArray()
         marker_array.markers = []
@@ -109,16 +127,13 @@ class OperatorLidarVFF(Operator):
                 marker_array.markers.append(get_marker(force_dict))
 
         if marker_array.markers:
-            print("zenoh publishing markers")
             ser_msg = _rclpy.rclpy_serialize(marker_array, type(marker_array))
-            self.markers_pub.put(ser_msg)
+            await self.output_markers.send(ser_msg)
 
         time.sleep(1e-2)
+        return None
 
     def finalize(self) -> None:
-        self.markers_pub.undeclare()
-        self.lidar_sub.undeclare()
-        self.session.close()
         return None
 
 
