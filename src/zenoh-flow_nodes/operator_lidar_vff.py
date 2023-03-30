@@ -86,7 +86,7 @@ class OperatorLidarVFF(Operator):
                 self.qr_msg = struct.unpack('%sf' % array_length, data_msg.data) # bytes to tuple
             elif who == "Scan":
                 #print("scan received")
-                self.scan_msg = _rclpy.rclpy_deserialize(data_msg.data, type(data_msg.data))
+                self.scan_msg = _rclpy.rclpy_deserialize(data_msg.data, LaserScan)
 
         self.VFF = VFF(self.scan_msg, objetive=self.qr_msg)
         kp_r, kp_a = 1/1000, 400
