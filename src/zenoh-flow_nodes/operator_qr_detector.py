@@ -3,8 +3,13 @@ from zenoh_flow import Input, Output
 from zenoh_flow.types import Context
 from typing import Dict, Any
 import cv2, numpy as np
+from cv_bridge import CvBridge
 from pyzbar.pyzbar import decode, ZBarSymbol
 import struct
+
+from rclpy.impl.implementation_singleton import rclpy_implementation as _rclpy
+from rclpy.type_support import check_for_type_support
+from sensor_msgs.msg import Image
 
 import sys, os, inspect
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
@@ -22,12 +27,16 @@ class OperatorQRDetector(Operator):
         outputs: Dict[str, Output],
     ):
         self.input = inputs.get("Image", None)
-        self.output = outputs.get("QR_Data", None)
+        self.output_qr = outputs.get("QR_Data", None)
+        self.output_debug_img = outputs.get("DebugImage", None)
 
         configuration = {} if configuration is None else configuration
         self.display_gui = bool(configuration.get("display_gui", False))
         self.detector = str(configuration.get("qr_code_detector", "zbar"))
         self.qr_data_to_track = str(configuration.get("qr_data_to_track", ""))
+
+        self.bridge = CvBridge()
+        check_for_type_support(Image)
 
     async def iteration(self) -> None:
         # in order to wait on multiple input streams use:
@@ -56,14 +65,17 @@ class OperatorQRDetector(Operator):
                     data = obj_decoded.data.decode('utf-8')
                     qr_codes.append(QRCode(points, data, [img_width, img_height]))
 
-        #FIXME: visualization sometimes crashes:
         if self.display_gui:
             if code_found:
-                print("code/s found")
+                #print("code/s found")
                 for qr_code in qr_codes: #draw bounding boxes info decoded from QR codes:
                     dec_img = qr_code.draw_bbox(dec_img, (0, 255, 0), (0, 0, 255))
-            cv2.imshow("Zenoh python QR code detector", dec_img)
-            cv2.waitKey(10)
+            scale = 0.5 #reduced 50% to avoid computing.
+            new_size = (int(dec_img.shape[1] * scale), int(dec_img.shape[0] * scale))
+            dec_img = cv2.resize(dec_img, new_size, interpolation=cv2.INTER_AREA)
+            img_msg = self.bridge.cv2_to_imgmsg(dec_img)
+            ser_msg = _rclpy.rclpy_serialize(img_msg, type(img_msg))
+            await self.output_debug_img.send(ser_msg)
 
         #select the only biggest QR code matching:
         qr_code_to_track = get_biggest_qr_code_matching(qr_codes, self.qr_data_to_track)
@@ -76,11 +88,10 @@ class OperatorQRDetector(Operator):
         
         #serialize ans send
         buf = struct.pack('%sf' % len(qr_msg), *qr_msg)
-        await self.output.send(buf)
+        await self.output_qr.send(buf)
         return None
 
     def finalize(self) -> None:
-        cv2.destroyAllWindows()
         return None
 
 
@@ -92,15 +103,6 @@ def get_biggest_qr_code_matching(qr_codes, data):
         if (biggest_code == None or qr_code > biggest_code) and qr_code.data_matches(data):
             biggest_code = qr_code
     return biggest_code
-
-#def int_to_bytes(x: int) -> bytes:
-#    return x.to_bytes((x.bit_length() + 7) // 8, "big")
-
-#def int_from_bytes(xbytes: bytes) -> int:
-#    return int.from_bytes(xbytes, "big")
-
-#def str_to_bytes(string: str) -> bytes:
-#    return bytes(string, 'utf-8')
 
 def img_from_bytes(xbytes: bytes) -> np.ndarray:
     enc_img = np.frombuffer(xbytes, dtype=np.uint8)

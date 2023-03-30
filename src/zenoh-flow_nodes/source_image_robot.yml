@@ -1,5 +1,5 @@
 id: source_image
-uri: file:///home/usanz/zs_t3/t3_ws/src/follow_beacon/src/zenoh-flow_nodes/source_image.py
+uri: file:///home/ubuntu/turtlebot3_ws/src/follow_beacon/src/zenoh-flow_nodes/source_image.py
 
 configuration:
   cam_num: 0

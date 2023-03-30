@@ -1,0 +1,9 @@
+id: operator_lidar_vff
+uri: file:///home/usanz/zs_t3/t3_ws/src/follow_beacon/src/zenoh-flow_nodes/operator_lidar_vff.py
+
+#configuration:
+#  parameter_name: ""
+
+inputs: [QR_Data, Scan]
+outputs: [Force, Markers]
+tags: []
