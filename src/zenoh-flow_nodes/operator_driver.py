@@ -4,6 +4,7 @@ from zenoh_flow.types import Context
 from typing import Dict, Any
 import struct, time
 
+from math import pi
 
 from rclpy.impl.implementation_singleton import rclpy_implementation as _rclpy
 from rclpy.type_support import check_for_type_support
@@ -48,6 +49,11 @@ class OperatorDriver(Operator):
         wanted_v, wanted_w = 0.0, 0.0
 
         if not self.only_display_mode:
+            #print(theta/pi)
+            #if (pi/2 < theta) and (theta < 3*pi/2):
+            if (abs(theta) > pi/2):
+                #theta = theta - pi
+                r *= -1
             wanted_w = self.kp_w * theta
             if not self.only_rotation_mode:
                 wanted_v = self.kp_v * r
@@ -57,6 +63,8 @@ class OperatorDriver(Operator):
         cmd_vel_msg.angular.z = wanted_w
 
         print(f"OPERATOR_DRIVER -> Sending vels [v, w]: [{cmd_vel_msg.linear.x}, {cmd_vel_msg.angular.z}]")
+        cmd_vel_msg.linear.x = 0.0
+        cmd_vel_msg.angular.z = 0.0
 
         #TODO: timeout to rotate after 3s
 

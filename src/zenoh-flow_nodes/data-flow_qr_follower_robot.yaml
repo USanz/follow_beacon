@@ -30,6 +30,10 @@ sinks:
     configuration:
       Markers: rt/markers/forces
     descriptor : "builtin://zenoh"
+  - id : sink_tf
+    configuration:
+      TF: rt/tf
+    descriptor : "builtin://zenoh"
   - id : sink_debug_image
     configuration:
       DebugImage: rt/debug/image/qr_codes
@@ -79,6 +83,13 @@ links:
     input : Markers
 
 - from:
+    node : operator_qr_detector
+    output : TF
+  to:
+    node : sink_tf
+    input : TF
+
+- from:
     node : operator_driver
     output : Twist
   to:
@@ -87,8 +98,6 @@ links:
 
 mapping:
   source_image: turtlebot3
-  source_scan: turtlebot3
   operator_qr_detector: computer
   operator_lidar_vff: computer
   operator_driver: computer
-  sink_motors: computer

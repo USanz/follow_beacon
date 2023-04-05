@@ -4,12 +4,9 @@ from zenoh_flow.types import Context
 from typing import Dict, Any
 import numpy as np
 
-import json, time
+import time
 
 import asyncio
-
-import zenoh
-from zenoh import Reliability, Sample
 
 import struct
 from rclpy.impl.implementation_singleton import rclpy_implementation as _rclpy
@@ -18,12 +15,45 @@ from sensor_msgs.msg import LaserScan
 from visualization_msgs.msg import Marker, MarkerArray
 from builtin_interfaces.msg import Duration
 from geometry_msgs.msg import Quaternion
+#from geometry_msgs.msg import TransformStamped
+#from rclpy.clock import Clock
 
 import sys, os, inspect
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
 sys.path.insert(0, parentdir)
 from zenoh_nodes.VFF import VFF
+
+#from rclpy.node import Node
+#from tf2_ros import TransformBroadcaster
+#import rclpy
+#import tf2_ros
+#from geometry_msgs.msg import TransformStamped
+#from tf2_msgs.msg import TFMessage
+
+#class FixedFrameBroadcaster(Node):
+#
+#   def __init__(self):
+#       super().__init__('fixed_frame_tf2_broadcaster')
+#       self.tf_broadcaster = TransformBroadcaster(self)
+#       #self.timer = self.create_timer(0.1, self.broadcast_timer_callback)
+#
+#   def broadcast_timer_callback(self):
+#       t = TransformStamped()
+#
+#       t.header.stamp = self.get_clock().now().to_msg()
+#       t.header.frame_id = 'base_scan'
+#       t.child_frame_id = 'new_tf'
+#       t.transform.translation.x = 0.0
+#       t.transform.translation.y = 0.0
+#       t.transform.translation.z = 1.0
+#       t.transform.rotation.x = 0.0
+#       t.transform.rotation.y = 0.0
+#       t.transform.rotation.z = 0.0
+#       t.transform.rotation.w = 1.0
+#
+#       self.tf_broadcaster.sendTransform(t)
+
 
 class OperatorLidarVFF(Operator):
     def __init__(
@@ -46,8 +76,15 @@ class OperatorLidarVFF(Operator):
 
         self.scan_msg = LaserScan()
         self.qr_msg = [0.0, 0.0, -1.0]
-        self.VFF = VFF(self.scan_msg, self.qr_msg)
+        self.kp_r, self.kp_a = 1/1000, 50
+        self.VFF = VFF(self.scan_msg, self.qr_msg, max_dist=1.0, kps=(self.kp_r, self.kp_a))
         self.pending = []
+
+        #node = Node("nodo0")
+        #node.__init__()
+        #self.tf_broadcaster = TransformBroadcaster(node)
+        #rclpy.init()
+        #self.node = FixedFrameBroadcaster()
 
     async def wait_qr(self):
         data_msg = await self.input_qr.recv()
@@ -88,14 +125,11 @@ class OperatorLidarVFF(Operator):
                 #print("scan received")
                 self.scan_msg = _rclpy.rclpy_deserialize(data_msg.data, LaserScan)
 
-        self.VFF = VFF(self.scan_msg, objetive=self.qr_msg)
-        kp_r, kp_a = 1/1000, 400
-        rep_theta, rep_r = self.VFF.get_rep_force()
-        atr_theta, atr_r = self.VFF.get_atr_force()
-        tot_theta, tot_r = self.VFF.get_tot_force(kp_r, kp_a)
-        #print("rep: ", rep_theta, kp_r * rep_r)
-        #print("atr: ", atr_theta, kp_a * atr_r)
-        #print("tot: ", tot_theta, tot_r)
+        self.VFF = VFF(self.scan_msg, self.qr_msg, max_dist=1.0, kps=(self.kp_r, self.kp_a))
+        rep_f, atr_f, tot_f = self.VFF.get_forces()
+        rep_theta, rep_r = rep_f
+        atr_theta, atr_r = atr_f
+        tot_theta, tot_r = tot_f
 
         tot_force_msg = [tot_theta, tot_r]
         buf = struct.pack('%sf' % len(tot_force_msg), *tot_force_msg)
@@ -106,7 +140,7 @@ class OperatorLidarVFF(Operator):
         marker_array.markers = []
 
         markers_pos = [0.0, 0.0, 0.1]
-        rep_scale_factor, atr_scale_factor, tot_scale_factor = [1/300, 100, 1]
+        rep_scale_factor, atr_scale_factor, tot_scale_factor = [1, 1, 1] #[1/300, 100, 1]
         lt = Duration()
         lt.sec = 0
         lt.nanosec = int(0.3e9) # 0.3s
@@ -130,10 +164,55 @@ class OperatorLidarVFF(Operator):
             ser_msg = _rclpy.rclpy_serialize(marker_array, type(marker_array))
             await self.output_markers.send(ser_msg)
 
+        #qr_code_tf = TransformStamped()
+        #qr_code_tf.header.stamp = Clock().now().to_msg()
+        #qr_code_tf.header.frame_id = 'base_scan'
+        #qr_code_tf.child_frame_id = 'new_tf'
+        #qr_code_tf.transform.translation.x = 0.0
+        #qr_code_tf.transform.translation.y = 0.0
+        #qr_code_tf.transform.translation.z = 1.0
+        #qr_code_tf.transform.rotation = get_quaternion_from_euler([0.0, 0.0, 0.1])
+        
+        #ser_msg = _rclpy.rclpy_serialize(qr_code_tf, type(qr_code_tf))
+        #await self.output_tf.send(ser_msg)
+        
+        #self.tf_broadcaster.sendTransform(qr_code_tf)
+        
+        #self.node.broadcast_timer_callback()
+        
+        #rclpy.spin_once(self.node)
+
+
+
+        #TODO: read the TF somehow (maybe receiving directly from /rt/tf), the following code doesn't work:
+        #lt = Duration()
+        #lt.sec = 0
+        #lt.nanosec = int(0.3e9) # 0.3s
+        #buffer_core = tf2_ros.BufferCore(lt)
+        #ts1 = TransformStamped()
+        #ts1.header.stamp = rclpy.time.Time().to_msg()
+        #ts1.header.frame_id = 'base_scan'
+        #ts1.child_frame_id = 'qr_code'
+        #ts1.transform.translation.x = 2.71828183
+        #ts1.transform.rotation.w = 1.0
+        #buffer_core.set_transform(ts1, "default_authority")
+        
+
+
+        #None of this options works, it says that:LookupException('\"qr_code\"
+        #passed to lookupTransform argument target_frame does not exist. ')
+
+        #a = buffer_core.lookup_transform_core('base_scan', 'qr_code', rclpy.time.Time())
+        #a = buffer_core.lookup_transform_core('base_scan', 'qr_code', Clock().now())
+        #a = buffer_core.lookup_transform_core('qr_code', 'base_scan', rclpy.time.Time())
+        #a = buffer_core.lookup_transform_core('qr_code', 'base_scan', Clock().now())
+        #print(a)
+
         time.sleep(1e-2)
         return None
 
     def finalize(self) -> None:
+        #rclpy.shutdown()
         return None
 
 
