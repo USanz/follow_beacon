@@ -36,14 +36,12 @@ class VFF:
 
     def get_atr_force(self):
         obj_x, obj_y, obj_z = self.target_pos
-        scale = -math.radians(90) #obj_x rescaled from [-1, 1] to [90, -90]º=[pi/2, -pi/2]rad
-        self.atr_force = (obj_x * scale, self.kp_atr/obj_z if obj_z > 0.0 else 0.0)
-        #self.atr_force = (obj_x**2 * scale, self.kp_atr/obj_z if obj_z > 0.0 else 0.0) # try
+        self.atr_force = (math.atan2(obj_y, obj_x), self.kp_atr*math.sqrt(obj_x**2 + obj_y**2))
         return self.atr_force
 
     def get_tot_force(self): #sum up both forces having into account the weights
         rx, ry = 0.0, 0.0
-        for force in [self.rep_force, self.atr_force]: # sum up all the cartesian coordinates (negative to invert the direction)
+        for force in [self.rep_force, self.atr_force]: # sum up all the cartesian coordinates
             rx += force[1] * math.cos(force[0])
             ry += force[1] * math.sin(force[0])
         self.tot_force = (math.atan2(ry, rx), math.sqrt(rx**2 + ry**2))

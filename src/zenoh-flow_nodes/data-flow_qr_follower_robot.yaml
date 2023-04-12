@@ -14,6 +14,10 @@ sources:
     configuration:
       Scan: rt/scan
     descriptor : "builtin://zenoh"
+  - id : source_tf
+    configuration:
+      TF: rt/tf #or rt/tf_static if you don't want it to disappear
+    descriptor : "builtin://zenoh"
 operators:
   - id : operator_qr_detector
     descriptor : "{{ BASE_DIR_PATH }}/operator_qr_detector.yml"
@@ -32,7 +36,7 @@ sinks:
     descriptor : "builtin://zenoh"
   - id : sink_tf
     configuration:
-      TF: rt/tf
+      TF: rt/tf #or rt/tf_static if you don't want it to disappear
     descriptor : "builtin://zenoh"
   - id : sink_debug_image
     configuration:
@@ -48,11 +52,11 @@ links:
     input : Image
 
 - from:
-    node : operator_qr_detector
-    output : QR_Data
+    node : source_tf
+    output : TF
   to:
     node : operator_lidar_vff
-    input : QR_Data
+    input : TF
 
 - from:
     node : operator_qr_detector

@@ -4,6 +4,6 @@ uri: file:///home/usanz/zs_t3/t3_ws/src/follow_beacon/src/zenoh-flow_nodes/opera
 #configuration:
 #  parameter_name: ""
 
-inputs: [QR_Data, Scan]
+inputs: [TF, Scan]
 outputs: [Force, Markers]
 tags: []

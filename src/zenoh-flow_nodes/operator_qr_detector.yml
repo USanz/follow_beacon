@@ -5,7 +5,8 @@ configuration:
   display_gui: true #published in a ros topic (see in rviz)
   qr_code_detector: "zbar" # choose between "zbar" or "opencv"
   qr_data_to_track: "https://github.com/USanz/follow_beacon"
+  cam_angle_of_view: 30.0
 
 inputs: [Image]
-outputs: [QR_Data, DebugImage, TF]
+outputs: [DebugImage, TF]
 tags: []

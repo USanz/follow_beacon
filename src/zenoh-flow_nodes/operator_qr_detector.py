@@ -19,9 +19,8 @@ from zenoh_nodes.QRCode import QRCode
 
 from builtin_interfaces.msg import Duration
 from rclpy.clock import Clock
-from geometry_msgs.msg import TransformStamped
+from geometry_msgs.msg import TransformStamped, Quaternion
 from tf2_msgs.msg import TFMessage
-from geometry_msgs.msg import Quaternion
 
 
 class OperatorQRDetector(Operator):
@@ -33,7 +32,6 @@ class OperatorQRDetector(Operator):
         outputs: Dict[str, Output],
     ):
         self.input = inputs.get("Image", None)
-        self.output_qr = outputs.get("QR_Data", None)
         self.output_debug_img = outputs.get("DebugImage", None)
         self.output_tf = outputs.get("TF", None)
 
@@ -41,6 +39,7 @@ class OperatorQRDetector(Operator):
         self.display_gui = bool(configuration.get("display_gui", False))
         self.detector = str(configuration.get("qr_code_detector", "zbar"))
         self.qr_data_to_track = str(configuration.get("qr_data_to_track", ""))
+        self.cam_angle_of_view = np.deg2rad(float(configuration.get("cam_angle_of_view", 60.0)))
 
         self.bridge = CvBridge()
         check_for_type_support(Image)
@@ -89,15 +88,13 @@ class OperatorQRDetector(Operator):
         #select the only biggest QR code matching:
         qr_code_to_track = get_biggest_qr_code_matching(qr_codes, self.qr_data_to_track)
 
-        #the mesage is a list of floats (x_pos, y_pos, diag_size):
-        qr_msg = [0.0, 0.0, -1.0]
         if qr_code_to_track != None:
-            qr_msg[0], qr_msg[1] = qr_code_to_track.get_centroid_rel()
-            qr_msg[2] = qr_code_to_track.get_diag_avg_size()
+            x, y = qr_code_to_track.get_centroid_rel()
+            z = qr_code_to_track.get_diag_avg_size()
             #Publish the qr_tf:
-            #TODO: have into account the camera overture in the maths
-            #TODO: modify the tf lifetime if possible to ~10s
-            scale_factor = 1/370
+            #TODO: modify the tf lifetime if possible to ~10s (i think it's not possible)
+            scale_factor = 1/400
+            scale_factor2 = 0.5
             lt = Duration()
             lt.sec = 3
             lt.nanosec = 0
@@ -105,20 +102,16 @@ class OperatorQRDetector(Operator):
             tf.header.stamp = Clock().now().to_msg()
             tf.header.frame_id = 'base_scan'
             tf.child_frame_id = 'qr_code'
-            tf.transform.translation.x = (600 - qr_msg[2])*scale_factor
-            tf.transform.translation.y = qr_msg[0]
-            tf.transform.translation.z = 0.5-qr_msg[1]
-            tf.transform.rotation = get_quaternion_from_euler([0.0, 0.0, 0.0])
+            tf.transform.translation.x = (600 - z) * scale_factor
+            tf.transform.translation.y = -x * self.cam_angle_of_view
+            tf.transform.translation.z = (1.0 - y) * scale_factor2
+            tf.transform.rotation = get_quaternion_from_euler([0.0, 0.0, np.pi])
+            #tf.transform.rotation = get_quaternion_from_euler([qr_rot, 0.0, np.pi])
             
             tf_msg = TFMessage()
             tf_msg.transforms.append(tf)
             ser_tf_msg = _rclpy.rclpy_serialize(tf_msg, type(tf_msg))
             await self.output_tf.send(ser_tf_msg)
-        
-        #serialize ans send
-        buf = struct.pack('%sf' % len(qr_msg), *qr_msg)
-        await self.output_qr.send(buf)
-        print(f"OPERATOR_QR_DETECTOR -> Sending QR data: {qr_msg}")
 
         return None
 
