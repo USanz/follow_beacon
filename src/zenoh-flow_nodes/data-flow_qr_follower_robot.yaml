@@ -55,6 +55,13 @@ links:
     node : source_tf
     output : TF
   to:
+    node : operator_qr_detector
+    input : TF
+
+- from:
+    node : source_tf
+    output : TF
+  to:
     node : operator_lidar_vff
     input : TF
 

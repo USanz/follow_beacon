@@ -5,7 +5,7 @@ from typing import Dict, Any
 import cv2, numpy as np
 from cv_bridge import CvBridge
 from pyzbar.pyzbar import decode, ZBarSymbol
-import struct
+import asyncio
 
 from rclpy.impl.implementation_singleton import rclpy_implementation as _rclpy
 from rclpy.type_support import check_for_type_support
@@ -31,7 +31,8 @@ class OperatorQRDetector(Operator):
         inputs: Dict[str, Input],
         outputs: Dict[str, Output],
     ):
-        self.input = inputs.get("Image", None)
+        self.input_img = inputs.get("Image", None)
+        self.input_tf = outputs.get("TF", None)
         self.output_debug_img = outputs.get("DebugImage", None)
         self.output_tf = outputs.get("TF", None)
 
@@ -46,26 +47,67 @@ class OperatorQRDetector(Operator):
         check_for_type_support(TransformStamped)
         check_for_type_support(TFMessage)
 
+    async def wait_odom_tf(self):
+        data_msg = await self.input_tf.recv()
+        return ("TF", data_msg)
+
+    async def wait_img(self):
+        data_msg = await self.input_img.recv()
+        return ("Image", data_msg)
+
+    def create_task_list(self):
+        task_list = [] + self.pending
+
+        if not any(t.get_name() == "TF" for t in task_list):
+            task_list.append(
+                asyncio.create_task(self.wait_odom_tf(), name="TF")
+            )
+
+        if not any(t.get_name() == "Image" for t in task_list):
+            task_list.append(
+                asyncio.create_task(self.wait_img(), name="Image")
+            )
+        return task_list
+
     async def iteration(self) -> None:
-        # in order to wait on multiple input streams use:
-        # https://docs.python.org/3/library/asyncio-task.html#asyncio.gather
-        # or
-        # https://docs.python.org/3/library/asyncio-task.html#asyncio.wait
-        data_msg = await self.input.recv()
-        dec_img = img_from_bytes(data_msg.data)
+        (done, pending) = await asyncio.wait(
+            self.create_task_list(),
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+
+        self.pending = list(pending)
+        for d in done:
+            (who, data_msg) = d.result()
+            if who == "TF":
+                self.tf_msg = _rclpy.rclpy_deserialize(data_msg.data, TFMessage)
+                for tf in self.tf_msg.transforms:
+                    if tf.header.frame_id == "odom" and tf.child_frame_id == "base_scan":
+                        self.qr_msg = [tf.transform.translation.x,
+                                       tf.transform.translation.y,
+                                       tf.transform.translation.z]
+                        print("TRANSFORM FOUND\n\n\n\n\n\n")
+                        break
+
+            elif who == "Image":
+                print("image")
+                self.dec_img = img_from_bytes(data_msg.data)
+
+
+        #data_msg = await self.input_img.recv()
+        #self.dec_img = img_from_bytes(data_msg.data)
         
         #detect the QR codes:
-        img_height, img_width, img_channels = dec_img.shape
+        img_height, img_width, img_channels = self.dec_img.shape
         code_found = False
         qr_codes = list()
         if self.detector == "opencv":
             qcd = cv2.QRCodeDetector() # openCV QR code detector and decoder
-            code_found, decoded_info, qr_codes_points, straight_qrcode = qcd.detectAndDecodeMulti(dec_img)
+            code_found, decoded_info, qr_codes_points, straight_qrcode = qcd.detectAndDecodeMulti(self.dec_img)
             if code_found:
                 for points, data in zip(qr_codes_points, decoded_info):
                     qr_codes.append(QRCode(points, data, [img_width, img_height]))
         elif self.detector == "zbar":
-            decoded_objects = decode(dec_img, symbols=[ZBarSymbol.QRCODE]) # Zbar QR code detector and decoder
+            decoded_objects = decode(self.dec_img, symbols=[ZBarSymbol.QRCODE]) # Zbar QR code detector and decoder
             code_found = len(decoded_objects) > 0
             if code_found:
                 for obj_decoded in decoded_objects:
@@ -76,12 +118,12 @@ class OperatorQRDetector(Operator):
         if self.display_gui:
             if code_found:
                 for qr_code in qr_codes: #draw bounding boxes info decoded from QR codes:
-                    dec_img = qr_code.draw_bbox(dec_img, (0, 255, 0), (0, 0, 255))
+                    self.dec_img = qr_code.draw_bbox(self.dec_img, (0, 255, 0), (0, 0, 255))
             #Send the uncompressed and edited img to debug:
             scale = 0.5 #reduced 50% to avoid computing.
-            new_size = (int(dec_img.shape[1] * scale), int(dec_img.shape[0] * scale))
-            dec_img = cv2.resize(dec_img, new_size, interpolation=cv2.INTER_AREA)
-            img_msg = self.bridge.cv2_to_imgmsg(dec_img)
+            new_size = (int(self.dec_img.shape[1] * scale), int(self.dec_img.shape[0] * scale))
+            self.dec_img = cv2.resize(self.dec_img, new_size, interpolation=cv2.INTER_AREA)
+            img_msg = self.bridge.cv2_to_imgmsg(self.dec_img)
             ser_msg = _rclpy.rclpy_serialize(img_msg, type(img_msg))
             await self.output_debug_img.send(ser_msg)
 
@@ -91,6 +133,33 @@ class OperatorQRDetector(Operator):
         if qr_code_to_track != None:
             x, y = qr_code_to_track.get_centroid_rel()
             z = qr_code_to_track.get_diag_avg_size()
+
+            #get the transform data from odom to base_scan:
+            #TODO: read the TF somehow (maybe receiving directly from /rt/tf), the following code doesn't work:
+            lt = Duration()
+            lt.sec = 0
+            lt.nanosec = int(0.3e9) # 0.3s
+            import tf2_ros, rclpy
+            buffer_core = tf2_ros.BufferCore(lt)
+            ts1 = TransformStamped()
+            ts1.header.stamp = rclpy.time.Time().to_msg()
+            ts1.header.frame_id = 'base_scan'
+            ts1.child_frame_id = 'odom'
+            ts1.transform.translation.x = 2.71828183
+            ts1.transform.rotation.w = 1.0
+            buffer_core.set_transform(ts1, "default_authority")
+
+
+
+            #None of this options works, it says that:LookupException('\"qr_code\"
+            #passed to lookupTransform argument target_frame does not exist. ')
+
+            a = buffer_core.lookup_transform_core('base_scan', 'odom', rclpy.time.Time())
+            #a = buffer_core.lookup_transform_core('base_scan', 'qr_code', Clock().now())
+            #a = buffer_core.lookup_transform_core('qr_code', 'base_scan', rclpy.time.Time())
+            #a = buffer_core.lookup_transform_core('qr_code', 'base_scan', Clock().now())
+            #print("TRANSFORM:::::::::::\n\n\n\n", a)
+
             #Publish the qr_tf:
             #TODO: modify the tf lifetime if possible to ~10s (i think it's not possible)
             scale_factor = 1/400
@@ -100,7 +169,7 @@ class OperatorQRDetector(Operator):
             lt.nanosec = 0
             tf = TransformStamped()
             tf.header.stamp = Clock().now().to_msg()
-            tf.header.frame_id = 'base_scan'
+            tf.header.frame_id = 'odom'
             tf.child_frame_id = 'qr_code'
             tf.transform.translation.x = (600 - z) * scale_factor
             tf.transform.translation.y = -x * self.cam_angle_of_view

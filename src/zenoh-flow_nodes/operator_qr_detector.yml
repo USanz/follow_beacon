@@ -7,6 +7,6 @@ configuration:
   qr_data_to_track: "https://github.com/USanz/follow_beacon"
   cam_angle_of_view: 30.0
 
-inputs: [Image]
+inputs: [Image, TF]
 outputs: [DebugImage, TF]
 tags: []
