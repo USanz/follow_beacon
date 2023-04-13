@@ -17,6 +17,16 @@ class VFF:
         self.atr_force = tuple()
         self.tot_force = tuple()
     
+    def set_lidar(self, laser_scan_msg: LaserScan, max_dist: float):
+        self.range_min = laser_scan_msg.range_min
+        self.max_dist = max_dist
+        self.range_max = min(laser_scan_msg.range_max, self.max_dist)
+        self.range = [self.range_min, self.range_max] #max min ranges
+        self.ranges = list(laser_scan_msg.ranges) #list of values
+
+    def set_target(self, target_pos: tuple):
+        self.target_pos = target_pos
+
     def get_rep_force(self): #virtual repulsive force calculated for the virtual force field (VFF) algorithm
         #list with the atractive forces (tuples: (theta, r)):
         forces = [

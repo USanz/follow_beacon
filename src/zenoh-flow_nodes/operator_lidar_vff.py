@@ -14,7 +14,7 @@ from rclpy.type_support import check_for_type_support
 from sensor_msgs.msg import LaserScan
 from visualization_msgs.msg import Marker, MarkerArray
 from builtin_interfaces.msg import Duration
-from geometry_msgs.msg import Quaternion
+from geometry_msgs.msg import Quaternion, Point
 from tf2_msgs.msg import TFMessage
 
 import sys, os, inspect
@@ -37,6 +37,10 @@ class OperatorLidarVFF(Operator):
         self.output_force = outputs.get("Force", None)
         self.output_markers = outputs.get("Markers", None)
 
+        self.lidar_max_radius = float(configuration.get("lidar_max_radius", 1.0))
+        self.kp_r = float(configuration.get("kp_r", 1 / 1000))
+        self.kp_a = float(configuration.get("kp_a", 1))
+
         check_for_type_support(LaserScan)
         check_for_type_support(Marker)
         check_for_type_support(MarkerArray)
@@ -47,8 +51,10 @@ class OperatorLidarVFF(Operator):
         self.scan_msg = LaserScan()
         self.tf_msg = TFMessage()
         self.qr_msg = [0.0, 0.0, -1.0]
-        self.kp_r, self.kp_a = 1/1000, 1
-        self.VFF = VFF(self.scan_msg, self.qr_msg, max_dist=1.0, kps=(self.kp_r, self.kp_a))
+        self.VFF = VFF(self.scan_msg,
+                       self.qr_msg,
+                       max_dist=self.lidar_max_radius,
+                       kps=(self.kp_r, self.kp_a))
         self.pending = []
 
     async def wait_qr_tf(self):
@@ -94,7 +100,8 @@ class OperatorLidarVFF(Operator):
             elif who == "Scan":
                 self.scan_msg = _rclpy.rclpy_deserialize(data_msg.data, LaserScan)
 
-        self.VFF = VFF(self.scan_msg, self.qr_msg, max_dist=1.0, kps=(self.kp_r, self.kp_a))
+        self.VFF.set_lidar(self.scan_msg, max_dist=self.lidar_max_radius)
+        self.VFF.set_target(self.qr_msg)
         rep_f, atr_f, tot_f = self.VFF.get_forces()
         rep_theta, rep_r = rep_f
         atr_theta, atr_r = atr_f
@@ -109,25 +116,35 @@ class OperatorLidarVFF(Operator):
         marker_array.markers = []
 
         markers_pos = [0.0, 0.0, 0.1]
-        forces_scale_factor = 1.0
         lt = Duration()
         lt.sec = 0
         lt.nanosec = int(0.3e9) # 0.3s
         rep_force_dict = {"id":0, "ns":"repulsion force", "type":Marker.ARROW,
-                          "position":markers_pos, "orientation":[0.0, 0.0, rep_theta],
-                          "scale":[rep_r*forces_scale_factor, 0.05, 0.05],
+                          "position":markers_pos, "frame_locked":False,
+                          "orientation":[0.0, 0.0, rep_theta],
+                          "scale":[rep_r, 0.05, 0.05],
                           "color_rgba":[1.0, 0.5, 0.0, 0.5], "lifetime":lt}
         atr_force_dict = {"id":1, "ns":"attraction force", "type":Marker.ARROW,
-                          "position":markers_pos, "orientation":[0.0, 0.0, atr_theta],
-                          "scale":[atr_r*forces_scale_factor, 0.05, 0.05],
+                          "position":markers_pos, "frame_locked":False,
+                          "orientation":[0.0, 0.0, atr_theta],
+                          "scale":[atr_r, 0.05, 0.05],
                           "color_rgba":[0.5, 1.0, 0.0, 0.5], "lifetime":lt}
         tot_force_dict = {"id":2, "ns":"total force", "type":Marker.ARROW,
-                          "position":markers_pos, "orientation":[0.0, 0.0, tot_theta],
-                          "scale":[tot_r*forces_scale_factor, 0.05, 0.05],
+                          "position":markers_pos, "frame_locked":False,
+                          "orientation":[0.0, 0.0, tot_theta],
+                          "scale":[tot_r, 0.05, 0.05],
                           "color_rgba":[0.0, 1.0, 1.0, 0.5], "lifetime":lt}
         for force_dict in [rep_force_dict, atr_force_dict, tot_force_dict]:
             if force_dict["scale"][0] > 0.0:
                 marker_array.markers.append(get_marker(force_dict))
+
+        #draw circle around the lidar with the min and max ranges:
+        for i, range_val in enumerate([self.lidar_max_radius,
+                                       self.scan_msg.range_min]):
+            lidar_range_marker = circunf_markers(origin_frame_id="base_scan",
+                                                    radius=range_val,
+                                                    points_num=10, id=3+i)
+            marker_array.markers.append(lidar_range_marker)
 
         if marker_array.markers:
             ser_msg = _rclpy.rclpy_serialize(marker_array, type(marker_array))
@@ -160,22 +177,46 @@ def get_quaternion_from_euler(rpy : list):
  
   return Quaternion(x=qx, y=qy, z=qz, w=qw)
 
-def get_marker(force_def_dict):
+def get_marker(def_dict):
     marker = Marker()
     #The main difference between them is that:
     #marker.header.stamp = rclpy.time.Time().to_msg() #this is the latest available transform in the buffer
     #marker.header.stamp = Clock().now().to_msg()# but this fetches the frame at the exact moment ((from rclpy.clock import Clock).
     marker.header.frame_id = "base_scan"
-    marker.ns = force_def_dict["ns"]
-    marker.id = force_def_dict["id"]
-    marker.type = force_def_dict["type"]
+    marker.ns = def_dict["ns"]
+    marker.id = def_dict["id"]
+    marker.frame_locked=def_dict["frame_locked"]
+    marker.type = def_dict["type"]
     marker.action = Marker.ADD
-    marker.lifetime = force_def_dict["lifetime"]
-    marker.pose.position.x, marker.pose.position.y, marker.pose.position.z = force_def_dict["position"]
-    marker.pose.orientation = get_quaternion_from_euler(force_def_dict["orientation"])
-    marker.scale.x, marker.scale.y, marker.scale.z = force_def_dict["scale"]
-    marker.color.r, marker.color.g, marker.color.b, marker.color.a = force_def_dict["color_rgba"]
+    marker.lifetime = def_dict["lifetime"]
+    marker.pose.position.x, marker.pose.position.y, marker.pose.position.z = def_dict["position"]
+    marker.pose.orientation = get_quaternion_from_euler(def_dict["orientation"])
+    marker.scale.x, marker.scale.y, marker.scale.z = def_dict["scale"]
+    marker.color.r, marker.color.g, marker.color.b, marker.color.a = def_dict["color_rgba"]
     return marker
+
+def circunf_markers(origin_frame_id: str, radius: float, points_num: int, id: int):
+    lt = Duration()
+    lt.sec = 1
+    lt.nanosec = int(0.3e9) # 0.3s
+    marker_dict = {"id":id, "ns":"lidar ranges", "type":Marker.LINE_STRIP,
+                    "position":[0.0, 0.0, 0.0], "orientation":[0.0, 0.0, 0.0],
+                    "scale":[0.01, 0.0, 0.0], "frame_locked":False,
+                    "color_rgba":[1.0, 0.0, 0.0, 0.5], "lifetime":lt}
+    marker = get_marker(marker_dict)
+    angle_step = 360 / points_num
+    for i in range(points_num):
+        point = Point()
+        point.x, point.y = polar2cart(i * angle_step, radius)
+        point.z = 0.0
+        marker.points.append(point)
+    marker.points.append(marker.points[0]) # to close the circle
+    return marker
+
+def polar2cart(theta, r):
+    x = r * np.cos(np.deg2rad(theta))
+    y = r * np.sin(np.deg2rad(theta))
+    return (x, y)
 
 
 def register():

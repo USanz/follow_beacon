@@ -1,8 +1,10 @@
 id: operator_lidar_vff
 uri: file:///home/usanz/zs_t3/t3_ws/src/follow_beacon/src/zenoh-flow_nodes/operator_lidar_vff.py
 
-#configuration:
-#  parameter_name: ""
+configuration:
+  lidar_max_radius: 1.0 #distance in meters
+  kp_r: 0.001
+  kp_a: 1.0
 
 inputs: [TF, Scan]
 outputs: [Force, Markers]
