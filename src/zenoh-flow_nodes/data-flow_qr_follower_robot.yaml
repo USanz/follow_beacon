@@ -16,7 +16,11 @@ sources:
     descriptor : "builtin://zenoh"
   - id : source_tf
     configuration:
-      TF: rt/tf #or rt/tf_static if you don't want it to disappear
+      TF: rt/tf
+    descriptor : "builtin://zenoh"
+  - id : source_tf_static
+    configuration:
+      TF_static: rt/tf_static
     descriptor : "builtin://zenoh"
 operators:
   - id : operator_qr_detector
@@ -57,6 +61,13 @@ links:
   to:
     node : operator_qr_detector
     input : TF
+
+- from:
+    node : source_tf_static
+    output : TF_static
+  to:
+    node : operator_qr_detector
+    input : TF_static
 
 - from:
     node : source_tf
