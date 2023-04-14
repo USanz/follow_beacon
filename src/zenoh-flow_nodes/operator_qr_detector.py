@@ -22,6 +22,7 @@ from rclpy.clock import Clock
 from geometry_msgs.msg import TransformStamped, Quaternion
 from tf2_msgs.msg import TFMessage
 
+import tf2_ros, rclpy
 
 class OperatorQRDetector(Operator):
     def __init__(
@@ -50,6 +51,13 @@ class OperatorQRDetector(Operator):
 
         self.dec_img = None
         self.pending = []
+
+        lt = Duration()
+        lt.sec = 0
+        lt.nanosec = int(0.3e9) # 0.3s
+        self.buffer_core = tf2_ros.BufferCore(lt)
+        self.qr_tf = TransformStamped()
+        self.published = False
 
     async def wait_tf(self):
         data_msg = await self.input_tf.recv()
@@ -86,37 +94,20 @@ class OperatorQRDetector(Operator):
             return_when=asyncio.FIRST_COMPLETED,
         )
 
+        tf_keys = ["odom->base_footprint",
+                    "base_footprint->base_link",
+                    "base_link->base_scan"]
+        tf_dict = {}
         self.pending = list(pending)
         for d in done:
             (who, data_msg) = d.result()
             if who in ["TF", "TF_static"]:
                 self.tf_msg = _rclpy.rclpy_deserialize(data_msg.data, TFMessage)
                 for tf in self.tf_msg.transforms:
-                    print(tf)
-                    if tf.header.frame_id == "odom" and tf.child_frame_id == "base_footprint":
-                        self.qr_msg = [tf.transform.translation.x,
-                                       tf.transform.translation.y,
-                                       tf.transform.translation.z]
-                        print("TRANSFORM FOUND -> ODOM_FOOTPRINT\n") # IT ONLY FINDS THIS ONE BECAUSE THE OTHER ONES ARE BEING PUBLISHED IN rt/tf_static.
-                    if tf.header.frame_id == "base_footprint" and tf.child_frame_id == "base_link":
-                        self.qr_msg = [tf.transform.translation.x,
-                                       tf.transform.translation.y,
-                                       tf.transform.translation.z]
-                        print("TRANSFORM FOUND -> FOOTPRINT_LINK\n")    
-                    if tf.header.frame_id == "base_link" and tf.child_frame_id == "base_scan":
-                        self.qr_msg = [tf.transform.translation.x,
-                                       tf.transform.translation.y,
-                                       tf.transform.translation.z]
-                        print("TRANSFORM FOUND -> LINK_SCAN\n")
-                    #No necesitamos base_scan -> qr_code, ya que la que vamos a
-                    #publicar es odom -> qr_code. Solo necesitamos las
-                    #anteriores para computar la direccion buena del QR con
-                    #respecto a odom:
-                    #if tf.header.frame_id == "base_scan" and tf.child_frame_id == "qr_code":
-                    #    self.qr_msg = [tf.transform.translation.x,
-                    #                   tf.transform.translation.y,
-                    #                   tf.transform.translation.z]
-                    #    print("TRANSFORM FOUND -> SCAN_QRCODE\n")
+                    key = tf.header.frame_id + "->" + tf.child_frame_id
+                    if key in tf_keys:
+                        tf_dict[key] = tf.transform
+                        self.buffer_core.set_transform(tf, "default_authority")
 
             elif who == "Image":
                 self.dec_img = img_from_bytes(data_msg.data)
@@ -159,55 +150,50 @@ class OperatorQRDetector(Operator):
                     x, y = qr_code_to_track.get_centroid_rel()
                     z = qr_code_to_track.get_diag_avg_size()
 
-                    #get the transform data from odom to base_scan:
-                    #TODO: read the TF somehow (maybe receiving directly from /rt/tf), the following code doesn't work:
-                    lt = Duration()
-                    lt.sec = 0
-                    lt.nanosec = int(0.3e9) # 0.3s
-                    import tf2_ros, rclpy
-                    buffer_core = tf2_ros.BufferCore(lt)
-                    ts1 = TransformStamped()
-                    ts1.header.stamp = rclpy.time.Time().to_msg()
-                    ts1.header.frame_id = 'base_scan'
-                    ts1.child_frame_id = 'odom'
-                    ts1.transform.translation.x = 2.71828183
-                    ts1.transform.rotation.w = 1.0
-                    buffer_core.set_transform(ts1, "default_authority")
-
-
-
-                    #None of this options works, it says that:LookupException('\"qr_code\"
-                    #passed to lookupTransform argument target_frame does not exist. ')
-
-                    a = buffer_core.lookup_transform_core('base_scan', 'odom', rclpy.time.Time())
-                    #a = buffer_core.lookup_transform_core('base_scan', 'qr_code', Clock().now())
-                    #a = buffer_core.lookup_transform_core('qr_code', 'base_scan', rclpy.time.Time())
-                    #a = buffer_core.lookup_transform_core('qr_code', 'base_scan', Clock().now())
-                    #print("TRANSFORM:::::::::::\n\n\n\n", a)
-
                     #Publish the qr_tf:
-                    #TODO: modify the tf lifetime if possible to ~10s (i think it's not possible)
                     scale_factor = 1/400
                     scale_factor2 = 0.5
                     lt = Duration()
                     lt.sec = 3
                     lt.nanosec = 0
-                    tf = TransformStamped()
-                    tf.header.stamp = Clock().now().to_msg()
-                    tf.header.frame_id = 'odom'
-                    tf.child_frame_id = 'qr_code'
-                    tf.transform.translation.x = (600 - z) * scale_factor
-                    tf.transform.translation.y = -x * self.cam_angle_of_view
-                    tf.transform.translation.z = (1.0 - y) * scale_factor2
-                    tf.transform.rotation = get_quaternion_from_euler([0.0, 0.0, np.pi])
+                    self.qr_tf.header.stamp = Clock().now().to_msg()
+                    self.qr_tf.header.frame_id = 'base_scan'
+                    self.qr_tf.child_frame_id = 'qr_code'
+                    self.qr_tf.transform.translation.x = (600 - z) * scale_factor
+                    self.qr_tf.transform.translation.y = -x * self.cam_angle_of_view
+                    self.qr_tf.transform.translation.z = (1.0 - y) * scale_factor2
+                    self.qr_tf.transform.rotation = get_quaternion_from_euler([0.0, 0.0, np.pi])
                     #tf.transform.rotation = get_quaternion_from_euler([qr_rot, 0.0, np.pi])
+                    self.buffer_core.set_transform(self.qr_tf, "t3_usanz_authority")
                     
                     tf_msg = TFMessage()
-                    tf_msg.transforms.append(tf)
+                    tf_msg.transforms.append(self.qr_tf)
                     ser_tf_msg = _rclpy.rclpy_serialize(tf_msg, type(tf_msg))
                     await self.output_tf.send(ser_tf_msg)
+                    self.published = True
+
+
+        if len(tf_dict.keys()) == len(tf_keys) and self.published:
+            try:
+                self.published = False
+                #TODO: try to wait for tranform:
+                #tf2_ros.waitForTransform('odom', 'qr_code', rclpy.time.Time(), rclpy.duration.Duration(1.0), tf_callback)
+                a = self.buffer_core.lookup_transform_core('odom', 'qr_code', rclpy.time.Time())
+                a.child_frame_id = 'qr_code_from_odom'
+                tf_msg = TFMessage()
+                tf_msg.transforms.append(a)
+                ser_tf_msg = _rclpy.rclpy_serialize(tf_msg, type(tf_msg))
+                await self.output_tf.send(ser_tf_msg)
+                #print("transform:", a, "\n\n\n\n\n\n\n\n")
+            except Exception as e:
+                pass
+                #print("EXCEPTION CAUGHT", type(e))
+                #print(e, "\n\n")
 
         return None
+    
+    #def tf_callback():
+    #    pass
 
     def finalize(self) -> None:
         return None
