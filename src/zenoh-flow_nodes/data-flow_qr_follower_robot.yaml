@@ -42,6 +42,10 @@ sinks:
     configuration:
       TF: rt/tf #or rt/tf_static if you don't want it to disappear
     descriptor : "builtin://zenoh"
+  - id : sink_tf_static
+    configuration:
+      TF_static: rt/tf_static
+    descriptor : "builtin://zenoh"
   - id : sink_debug_image
     configuration:
       DebugImage: rt/debug/image/qr_codes
@@ -82,6 +86,13 @@ links:
   to:
     node : sink_debug_image
     input : DebugImage
+
+- from:
+    node : operator_qr_detector
+    output : TF_static
+  to:
+    node : sink_tf_static
+    input : TF_static
 
 - from:
     node : source_scan

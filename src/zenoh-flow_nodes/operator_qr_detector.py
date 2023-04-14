@@ -37,6 +37,7 @@ class OperatorQRDetector(Operator):
         self.input_tf_static = inputs.get("TF_static", None)
         self.output_debug_img = outputs.get("DebugImage", None)
         self.output_tf = outputs.get("TF", None)
+        self.output_tf_static = outputs.get("TF_static", None)
 
         configuration = {} if configuration is None else configuration
         self.display_gui = bool(configuration.get("display_gui", False))
@@ -183,7 +184,7 @@ class OperatorQRDetector(Operator):
                 tf_msg = TFMessage()
                 tf_msg.transforms.append(a)
                 ser_tf_msg = _rclpy.rclpy_serialize(tf_msg, type(tf_msg))
-                await self.output_tf.send(ser_tf_msg)
+                await self.output_tf_static.send(ser_tf_msg)
                 #print("transform:", a, "\n\n\n\n\n\n\n\n")
             except Exception as e:
                 pass

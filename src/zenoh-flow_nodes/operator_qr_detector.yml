@@ -8,5 +8,5 @@ configuration:
   cam_angle_of_view: 30.0
 
 inputs: [Image, TF, TF_static]
-outputs: [DebugImage, TF]
+outputs: [DebugImage, TF, TF_static]
 tags: []
