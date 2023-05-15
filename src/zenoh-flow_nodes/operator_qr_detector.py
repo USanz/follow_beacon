@@ -36,7 +36,7 @@ class OperatorQRDetector(Operator):
         self.input_tf = inputs.get("TF", None)
         self.input_tf_static = inputs.get("TF_static", None)
         self.output_debug_img = outputs.get("DebugImage", None)
-        self.output_tf = outputs.get("TF", None)
+        #self.output_tf = outputs.get("TF", None)
         self.output_tf_static = outputs.get("TF_static", None)
 
         configuration = {} if configuration is None else configuration
@@ -58,7 +58,7 @@ class OperatorQRDetector(Operator):
         lt.nanosec = int(0.3e9) # 0.3s
         self.buffer_core = tf2_ros.BufferCore(lt)
         self.qr_tf = TransformStamped()
-        self.published = False
+        #self.published = False
 
     async def wait_tf(self):
         data_msg = await self.input_tf.recv()
@@ -95,7 +95,7 @@ class OperatorQRDetector(Operator):
             return_when=asyncio.FIRST_COMPLETED,
         )
 
-        tf_keys = ["odom->base_footprint",
+        tf_names = ["odom->base_footprint",
                     "base_footprint->base_link",
                     "base_link->base_scan"]
         tf_dict = {}
@@ -106,7 +106,7 @@ class OperatorQRDetector(Operator):
                 self.tf_msg = _rclpy.rclpy_deserialize(data_msg.data, TFMessage)
                 for tf in self.tf_msg.transforms:
                     key = tf.header.frame_id + "->" + tf.child_frame_id
-                    if key in tf_keys:
+                    if key in tf_names:
                         tf_dict[key] = tf.transform
                         self.buffer_core.set_transform(tf, "default_authority")
 
@@ -151,7 +151,7 @@ class OperatorQRDetector(Operator):
                     x, y = qr_code_to_track.get_centroid_rel()
                     z = qr_code_to_track.get_diag_avg_size()
 
-                    #Publish the qr_tf:
+                    #Save the qr_tf relative to base_scan into a TF buffer:
                     scale_factor = 1/400
                     scale_factor2 = 0.5
                     lt = Duration()
@@ -167,34 +167,24 @@ class OperatorQRDetector(Operator):
                     #tf.transform.rotation = get_quaternion_from_euler([qr_rot, 0.0, np.pi])
                     self.buffer_core.set_transform(self.qr_tf, "t3_usanz_authority")
                     
-                    tf_msg = TFMessage()
-                    tf_msg.transforms.append(self.qr_tf)
-                    ser_tf_msg = _rclpy.rclpy_serialize(tf_msg, type(tf_msg))
-                    await self.output_tf.send(ser_tf_msg)
-                    self.published = True
+                    #We dont need to publish it anymore as it is in rt/tf_static:
+                    #tf_msg = TFMessage()
+                    #tf_msg.transforms.append(self.qr_tf)
+                    #ser_tf_msg = _rclpy.rclpy_serialize(tf_msg, type(tf_msg))
+                    #await self.output_tf.send(ser_tf_msg)
 
-
-        if len(tf_dict.keys()) == len(tf_keys) and self.published:
+        if len(tf_dict.keys()) == len(tf_names):
             try:
-                self.published = False
-                #TODO: try to wait for tranform:
-                #tf2_ros.waitForTransform('odom', 'qr_code', rclpy.time.Time(), rclpy.duration.Duration(1.0), tf_callback)
-                a = self.buffer_core.lookup_transform_core('odom', 'qr_code', rclpy.time.Time())
-                a.child_frame_id = 'qr_code_from_odom'
+                new_tf = self.buffer_core.lookup_transform_core('odom', 'qr_code', rclpy.time.Time())
+                new_tf.child_frame_id = 'qr_code_from_odom'
                 tf_msg = TFMessage()
-                tf_msg.transforms.append(a)
+                tf_msg.transforms.append(new_tf)
                 ser_tf_msg = _rclpy.rclpy_serialize(tf_msg, type(tf_msg))
                 await self.output_tf_static.send(ser_tf_msg)
-                #print("transform:", a, "\n\n\n\n\n\n\n\n")
             except Exception as e:
                 pass
-                #print("EXCEPTION CAUGHT", type(e))
-                #print(e, "\n\n")
 
         return None
-    
-    #def tf_callback():
-    #    pass
 
     def finalize(self) -> None:
         return None

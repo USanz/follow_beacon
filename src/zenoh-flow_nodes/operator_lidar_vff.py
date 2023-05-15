@@ -14,6 +14,8 @@ from rclpy.type_support import check_for_type_support
 from sensor_msgs.msg import LaserScan
 from visualization_msgs.msg import Marker, MarkerArray
 from builtin_interfaces.msg import Duration
+from rclpy.clock import Clock
+from rclpy.time import Time
 from geometry_msgs.msg import Quaternion, Point
 from tf2_msgs.msg import TFMessage
 
@@ -23,6 +25,7 @@ parentdir = os.path.dirname(currentdir)
 sys.path.insert(0, parentdir)
 from zenoh_nodes.VFF import VFF
 
+import tf2_ros, rclpy
 
 class OperatorLidarVFF(Operator):
     def __init__(
@@ -33,6 +36,7 @@ class OperatorLidarVFF(Operator):
         outputs: Dict[str, Output],
     ):
         self.input_tf = inputs.get("TF", None)
+        self.input_tf_static = inputs.get("TF_static", None)
         self.input_scan = inputs.get("Scan", None)
         self.output_force = outputs.get("Force", None)
         self.output_markers = outputs.get("Markers", None)
@@ -50,16 +54,26 @@ class OperatorLidarVFF(Operator):
 
         self.scan_msg = LaserScan()
         self.tf_msg = TFMessage()
-        self.qr_msg = [0.0, 0.0, -1.0]
+        self.tf_pos = [0.0, 0.0, -1.0]
+        self.last_qr_pos = self.tf_pos
         self.VFF = VFF(self.scan_msg,
-                       self.qr_msg,
+                       self.tf_pos,
                        max_dist=self.lidar_max_radius,
                        kps=(self.kp_r, self.kp_a))
         self.pending = []
 
+        lt = Duration()
+        lt.sec = 10
+        lt.nanosec = 0
+        self.buffer_core = tf2_ros.BufferCore(lt)
+
     async def wait_qr_tf(self):
         data_msg = await self.input_tf.recv()
         return ("TF", data_msg)
+
+    async def wait_qr_tf_static(self):
+        data_msg = await self.input_tf_static.recv()
+        return ("TF_static", data_msg)
 
     async def wait_scan(self):
         data_msg = await self.input_scan.recv()
@@ -72,7 +86,10 @@ class OperatorLidarVFF(Operator):
             task_list.append(
                 asyncio.create_task(self.wait_qr_tf(), name="TF")
             )
-
+        if not any(t.get_name() == "TF_static" for t in task_list):
+            task_list.append(
+                asyncio.create_task(self.wait_qr_tf_static(), name="TF_static")
+            )
         if not any(t.get_name() == "Scan" for t in task_list):
             task_list.append(
                 asyncio.create_task(self.wait_scan(), name="Scan")
@@ -85,31 +102,68 @@ class OperatorLidarVFF(Operator):
             return_when=asyncio.FIRST_COMPLETED,
         )
 
+        tf_names = ["odom->base_footprint",
+                    "base_footprint->base_link",
+                    "base_link->base_scan",
+                    "odom->qr_code_from_odom"]
         self.pending = list(pending)
         for d in done:
             (who, data_msg) = d.result()
-            if who == "TF":
+            if who in ["TF", "TF_static"]:
                 self.tf_msg = _rclpy.rclpy_deserialize(data_msg.data, TFMessage)
                 for tf in self.tf_msg.transforms:
-                    if tf.child_frame_id == "qr_code":
-                        self.qr_msg = [tf.transform.translation.x,
-                                       tf.transform.translation.y,
-                                       tf.transform.translation.z]
-                        break
+                    tf_name = tf.header.frame_id + "->" + tf.child_frame_id
+                    if tf_name in tf_names:
+                        #tf.header.stamp = Clock().now().to_msg()
+                        self.buffer_core.set_transform(tf, "default_authority")
+
+                    #if tf_name == "base_scan->qr_code":
+                    #    print("RELATIVE TO BASE_SCAN")
+                    #    
+                    #    #This updates but so slowly so it results on very high elapsed times:
+                    #    ts_tf_ns = tf.header.stamp.sec * 1e9 + tf.header.stamp.nanosec
+                    #    ts_now = Clock().now().nanoseconds
+                    #    elapsed_total = ts_now - ts_tf_ns
+                    #    print("time elsapsed in s:", elapsed_total*1e-9) #why the time is so high???
+
+                    #    if elapsed_total < int(0.1e9): #1e9 ns = 1 s
+                    #        self.tf_pos = [tf.transform.translation.x,
+                    #                       tf.transform.translation.y,
+                    #                       tf.transform.translation.z]
+                    #        break
+
+                    if tf_name == "odom->qr_code_from_odom":
+                        print("ABSOLUTE (RELATIVE TO ODOM)")
+                        try:
+                            new_tf = self.buffer_core.lookup_transform_core('base_scan', 'qr_code_from_odom', rclpy.time.Time())
+                            self.buffer_core.set_transform(new_tf, "t3_usanz_authority")
+                            ts_tf_ns = new_tf.header.stamp.sec * 1e9 + new_tf.header.stamp.nanosec
+                            ts_now = Clock().now().nanoseconds
+                            elapsed_total = ts_now - ts_tf_ns
+                            #print("time elsapsed in s:", elapsed_total*1e-9)
+
+                            self.tf_pos = [new_tf.transform.translation.x,
+                                           new_tf.transform.translation.y,
+                                           new_tf.transform.translation.z]
+                            #They are the same exact coords as in the operator qr detector node.
+                            print("operator lidar qr tf from base_scan:", self.tf_pos)
+                            self.last_qr_pos = self.tf_pos
+                        except Exception as e:
+                            pass
 
             elif who == "Scan":
                 self.scan_msg = _rclpy.rclpy_deserialize(data_msg.data, LaserScan)
 
         self.VFF.set_lidar(self.scan_msg, max_dist=self.lidar_max_radius)
-        self.VFF.set_target(self.qr_msg)
+        self.VFF.set_target(self.tf_pos)
         rep_f, atr_f, tot_f = self.VFF.get_forces()
         rep_theta, rep_r = rep_f
         atr_theta, atr_r = atr_f
         tot_theta, tot_r = tot_f
 
-        tot_force_msg = [tot_theta, tot_r]
+        tot_force_msg = list(tot_f)
         buf = struct.pack('%sf' % len(tot_force_msg), *tot_force_msg)
-        print(f"OPERATOR_LIDAR_VFF -> Sending force: {tot_force_msg}")
+        #print(f"OPERATOR_LIDAR_VFF -> Sending force: {tot_force_msg}")
         await self.output_force.send(buf)
 
         marker_array = MarkerArray()
@@ -123,17 +177,17 @@ class OperatorLidarVFF(Operator):
                           "position":markers_pos, "frame_locked":False,
                           "orientation":[0.0, 0.0, rep_theta],
                           "scale":[rep_r, 0.05, 0.05],
-                          "color_rgba":[1.0, 0.5, 0.0, 0.5], "lifetime":lt}
+                          "color_rgba":[1.0, 0.5, 0.0, 0.75], "lifetime":lt}
         atr_force_dict = {"id":1, "ns":"attraction force", "type":Marker.ARROW,
                           "position":markers_pos, "frame_locked":False,
                           "orientation":[0.0, 0.0, atr_theta],
                           "scale":[atr_r, 0.05, 0.05],
-                          "color_rgba":[0.5, 1.0, 0.0, 0.5], "lifetime":lt}
+                          "color_rgba":[0.5, 1.0, 0.0, 0.75], "lifetime":lt}
         tot_force_dict = {"id":2, "ns":"total force", "type":Marker.ARROW,
                           "position":markers_pos, "frame_locked":False,
                           "orientation":[0.0, 0.0, tot_theta],
                           "scale":[tot_r, 0.05, 0.05],
-                          "color_rgba":[0.0, 1.0, 1.0, 0.5], "lifetime":lt}
+                          "color_rgba":[0.0, 1.0, 1.0, 0.75], "lifetime":lt}
         for force_dict in [rep_force_dict, atr_force_dict, tot_force_dict]:
             if force_dict["scale"][0] > 0.0:
                 marker_array.markers.append(get_marker(force_dict))
@@ -143,7 +197,7 @@ class OperatorLidarVFF(Operator):
                                        self.scan_msg.range_min]):
             lidar_range_marker = circunf_markers(origin_frame_id="base_scan",
                                                     radius=range_val,
-                                                    points_num=10, id=3+i)
+                                                    points_num=15, id=3+i)
             marker_array.markers.append(lidar_range_marker)
 
         if marker_array.markers:

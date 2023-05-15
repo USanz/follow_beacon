@@ -74,6 +74,13 @@ links:
     input : TF_static
 
 - from:
+    node : source_tf_static
+    output : TF_static
+  to:
+    node : operator_lidar_vff
+    input : TF_static
+
+- from:
     node : source_tf
     output : TF
   to:

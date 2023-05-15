@@ -33,6 +33,8 @@ class OperatorDriver(Operator):
         self.goal_x_threshold = float(configuration.get("goal_x_threshold", 0.1))
         self.kp_v = float(configuration.get("kp_v", 0.35))
         self.kp_w = float(configuration.get("kp_w", 0.005))
+        self.max_v = float(configuration.get("max_v", 1.0))
+        self.max_w = float(configuration.get("max_w", 1.0))
 
         self.target_lost_timeout = int(configuration.get("target_lost_timeout", 3000))
         self.target_lost_ts = get_time_ms()
@@ -59,13 +61,12 @@ class OperatorDriver(Operator):
                 wanted_v = self.kp_v * r
 
         cmd_vel_msg = get_twist_msg()
-        cmd_vel_msg.linear.x = wanted_v
-        cmd_vel_msg.angular.z = wanted_w
+        cmd_vel_msg.linear.x = min(wanted_v, self.max_v)
+        cmd_vel_msg.angular.z = min(wanted_w, self.max_w)
 
-        print(f"OPERATOR_DRIVER -> Sending vels [v, w]: [{cmd_vel_msg.linear.x}, {cmd_vel_msg.angular.z}]")
-        cmd_vel_msg.linear.x = 0.0
-        cmd_vel_msg.angular.z = 0.0
-
+        #print(f"OPERATOR_DRIVER -> Calculated vels [v, w]: [{wanted_v}, {wanted_w}]")
+        #print(f"OPERATOR_DRIVER -> Sending vels [v, w]:    [{cmd_vel_msg.linear.x}, {cmd_vel_msg.angular.z}]")
+        
         #TODO: timeout to rotate after 3s
 
         """
