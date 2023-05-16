@@ -114,8 +114,15 @@ class OperatorLidarVFF(Operator):
                 for tf in self.tf_msg.transforms:
                     tf_name = tf.header.frame_id + "->" + tf.child_frame_id
                     if tf_name in tf_names:
-                        #tf.header.stamp = Clock().now().to_msg()
+                        tf.header.stamp = rclpy.time.Time().to_msg()
                         self.buffer_core.set_transform(tf, "default_authority")
+
+                    try:
+                        new_tf = self.buffer_core.lookup_transform_core('odom', 'base_scan', rclpy.time.Time())
+                        #print(new_tf)
+                    except Exception as e:
+                        #print(e)
+                        pass
 
                     #if tf_name == "base_scan->qr_code":
                     #    print("RELATIVE TO BASE_SCAN")
@@ -132,47 +139,56 @@ class OperatorLidarVFF(Operator):
                     #                       tf.transform.translation.z]
                     #        break
 
-                    if tf_name == "odom->qr_code_from_odom":
-                        print("ABSOLUTE (RELATIVE TO ODOM)")
-                        try:
-                            new_tf = self.buffer_core.lookup_transform_core('base_scan', 'qr_code_from_odom', rclpy.time.Time())
-                            self.buffer_core.set_transform(new_tf, "t3_usanz_authority")
-                            ts_tf_ns = new_tf.header.stamp.sec * 1e9 + new_tf.header.stamp.nanosec
-                            ts_now = Clock().now().nanoseconds
-                            elapsed_total = ts_now - ts_tf_ns
-                            #print("time elsapsed in s:", elapsed_total*1e-9)
+                    #if tf_name == "odom->qr_code_from_odom":
+                    new_tf = None
+                    try:
+                        new_tf = self.buffer_core.lookup_transform_core('base_scan', 'qr_code_from_odom', rclpy.time.Time())
+                        self.buffer_core.set_transform(new_tf, "t3_usanz_authority")
+                        ts_tf_ns = new_tf.header.stamp.sec * 1e9 + new_tf.header.stamp.nanosec
+                        ts_now = Clock().now().nanoseconds
+                        elapsed_total = ts_now - ts_tf_ns
+                        #print("time elsapsed in s:", elapsed_total*1e-9)
 
-                            self.tf_pos = [new_tf.transform.translation.x,
-                                           new_tf.transform.translation.y,
-                                           new_tf.transform.translation.z]
-                            #They are the same exact coords as in the operator qr detector node.
-                            print("operator lidar qr tf from base_scan:", self.tf_pos)
-                            self.last_qr_pos = self.tf_pos
-                        except Exception as e:
-                            pass
+                        #They are the same exact coords as in the operator qr detector node.
+                        #print("OPERATOR_LIDAR_VFF -> qr tf from base_scan:", self.tf_pos)
+                        self.last_qr_pos = self.tf_pos
+
+                    except Exception as e:
+                        #print(e)
+                        pass
+
+                    if new_tf != None:
+                        self.tf_pos = [new_tf.transform.translation.x,
+                                        new_tf.transform.translation.y,
+                                        new_tf.transform.translation.z]
+                        self.VFF.set_target(self.tf_pos)
+                        #print(self.tf_pos)
+                        #print("UPDATING ATRACTION FORCE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                            
+
 
             elif who == "Scan":
                 self.scan_msg = _rclpy.rclpy_deserialize(data_msg.data, LaserScan)
-
-        self.VFF.set_lidar(self.scan_msg, max_dist=self.lidar_max_radius)
-        self.VFF.set_target(self.tf_pos)
+                self.VFF.set_lidar(self.scan_msg, max_dist=self.lidar_max_radius)
+        
         rep_f, atr_f, tot_f = self.VFF.get_forces()
         rep_theta, rep_r = rep_f
         atr_theta, atr_r = atr_f
         tot_theta, tot_r = tot_f
+        #print("rep force:", rep_f)
+        #print("atr force:", atr_f)
+        #print("tot force:", tot_f)
 
         tot_force_msg = list(tot_f)
         buf = struct.pack('%sf' % len(tot_force_msg), *tot_force_msg)
-        #print(f"OPERATOR_LIDAR_VFF -> Sending force: {tot_force_msg}")
+        print(f"OPERATOR_LIDAR_VFF -> Sending force: {tot_force_msg}")
         await self.output_force.send(buf)
 
         marker_array = MarkerArray()
         marker_array.markers = []
 
         markers_pos = [0.0, 0.0, 0.1]
-        lt = Duration()
-        lt.sec = 0
-        lt.nanosec = int(0.3e9) # 0.3s
+        lt = Duration(sec=0, nanosec=int(0.3e9)) # 0.3s
         rep_force_dict = {"id":0, "ns":"repulsion force", "type":Marker.ARROW,
                           "position":markers_pos, "frame_locked":False,
                           "orientation":[0.0, 0.0, rep_theta],

@@ -36,7 +36,7 @@ class OperatorQRDetector(Operator):
         self.input_tf = inputs.get("TF", None)
         self.input_tf_static = inputs.get("TF_static", None)
         self.output_debug_img = outputs.get("DebugImage", None)
-        #self.output_tf = outputs.get("TF", None)
+        self.output_tf = outputs.get("TF", None)
         self.output_tf_static = outputs.get("TF_static", None)
 
         configuration = {} if configuration is None else configuration
@@ -177,8 +177,11 @@ class OperatorQRDetector(Operator):
             try:
                 new_tf = self.buffer_core.lookup_transform_core('odom', 'qr_code', rclpy.time.Time())
                 new_tf.child_frame_id = 'qr_code_from_odom'
+                new_tf.header.stamp = Clock().now().to_msg()
+                
                 tf_msg = TFMessage()
                 tf_msg.transforms.append(new_tf)
+                
                 ser_tf_msg = _rclpy.rclpy_serialize(tf_msg, type(tf_msg))
                 await self.output_tf_static.send(ser_tf_msg)
             except Exception as e:

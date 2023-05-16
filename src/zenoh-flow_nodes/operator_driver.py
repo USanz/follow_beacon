@@ -48,24 +48,36 @@ class OperatorDriver(Operator):
         #print(f"OPERATOR_DRIVER -> Received: {force_message}")
 
         theta, r = force_message # polar coordinates
-        wanted_v, wanted_w = 0.0, 0.0
 
-        if not self.only_display_mode:
-            #print(theta/pi)
-            #if (pi/2 < theta) and (theta < 3*pi/2):
-            if (abs(theta) > pi/2):
-                #theta = theta - pi
-                r *= -1
-            wanted_w = self.kp_w * theta
-            if not self.only_rotation_mode:
-                wanted_v = self.kp_v * r
+        if (abs(theta) > pi/2):
+            #theta = theta - pi
+            r *= -1
+        wanted_w = self.kp_w * theta
+        wanted_v = self.kp_v * r
+        #wanted_v, wanted_w = 0.0, 0.0
+
+        #if not self.only_display_mode:
+        #    #print(theta/pi)
+        #    #if (pi/2 < theta) and (theta < 3*pi/2):
+        #    if (abs(theta) > pi/2):
+        #        #theta = theta - pi
+        #        r *= -1
+        #    wanted_w = self.kp_w * theta
+        #    if not self.only_rotation_mode:
+        #        wanted_v = self.kp_v * r
 
         cmd_vel_msg = get_twist_msg()
         cmd_vel_msg.linear.x = min(wanted_v, self.max_v)
         cmd_vel_msg.angular.z = min(wanted_w, self.max_w)
+        
+        if self.only_rotation_mode:
+            cmd_vel_msg.linear.x = 0.0
+        if self.only_display_mode:
+            cmd_vel_msg.linear.x = 0.0
+            cmd_vel_msg.angular.z = 0.0
 
-        #print(f"OPERATOR_DRIVER -> Calculated vels [v, w]: [{wanted_v}, {wanted_w}]")
-        #print(f"OPERATOR_DRIVER -> Sending vels [v, w]:    [{cmd_vel_msg.linear.x}, {cmd_vel_msg.angular.z}]")
+        print(f"OPERATOR_DRIVER -> Calculated vels [v, w]: [{wanted_v}, {wanted_w}]")
+        print(f"OPERATOR_DRIVER -> Sending vels [v, w]:    [{cmd_vel_msg.linear.x}, {cmd_vel_msg.angular.z}]")
         
         #TODO: timeout to rotate after 3s
 

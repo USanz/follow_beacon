@@ -3,7 +3,7 @@ uri: file:///home/usanz/zs_t3/t3_ws/src/follow_beacon/src/zenoh-flow_nodes/opera
 
 configuration:
   only_rotation_mode: false
-  only_display_mode: true
+  only_display_mode: false
   goal_x_dist: 0.0
   goal_pix_diag: 160.0
   goal_x_threshold: 0.10

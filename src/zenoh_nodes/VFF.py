@@ -24,8 +24,8 @@ class VFF:
         self.range = [self.range_min, self.range_max] #max min ranges
         self.ranges = list(laser_scan_msg.ranges) #list of values
 
-    def set_target(self, target_pos: tuple):
-        self.target_pos = target_pos
+    def set_target(self, tar_pos: tuple):
+        self.target_pos = tar_pos
 
     def get_rep_force(self): #virtual repulsive force calculated for the virtual force field (VFF) algorithm
         #list with the atractive forces (tuples: (theta, r)):
@@ -46,7 +46,9 @@ class VFF:
 
     def get_atr_force(self):
         obj_x, obj_y, obj_z = self.target_pos
-        self.atr_force = (math.atan2(obj_y, obj_x), self.kp_atr*math.sqrt(obj_x**2 + obj_y**2))
+        dist = self.kp_atr * math.sqrt(obj_x**2 + obj_y**2)
+        theta = math.atan2(obj_y, obj_x)
+        self.atr_force = (theta, dist)
         return self.atr_force
 
     def get_tot_force(self): #sum up both forces having into account the weights
