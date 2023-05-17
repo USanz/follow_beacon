@@ -20,6 +20,10 @@ sinks:
     configuration:
       Twist: rt/cmd_vel
     descriptor : "builtin://zenoh"
+  - id : sink_debug_img
+    configuration:
+      Debug_Image: rt/debug/image
+    descriptor : "builtin://zenoh"
 
 links:
 - from:
@@ -34,6 +38,12 @@ links:
   to:
     node : operator_driver
     input : QR_Data
+- from:
+    node : operator_qr_detector
+    output : Debug_Image
+  to:
+    node : sink_debug_img
+    input : Debug_Image
 - from:
     node : operator_driver
     output : Twist

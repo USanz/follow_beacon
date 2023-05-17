@@ -12,6 +12,12 @@ parentdir = os.path.dirname(currentdir)
 sys.path.insert(0, parentdir)
 from zenoh_nodes.QRCode import QRCode
 
+from rclpy.impl.implementation_singleton import rclpy_implementation as _rclpy
+from rclpy.type_support import check_for_type_support
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
+
+
 
 class OperatorQRDetector(Operator):
     def __init__(
@@ -23,11 +29,15 @@ class OperatorQRDetector(Operator):
     ):
         self.input = inputs.get("Image", None)
         self.output = outputs.get("QR_Data", None)
+        self.img_debug_output = outputs.get("Debug_Image", None)
 
         configuration = {} if configuration is None else configuration
         self.display_gui = bool(configuration.get("display_gui", False))
         self.detector = str(configuration.get("qr_code_detector", "zbar"))
         self.qr_data_to_track = str(configuration.get("qr_data_to_track", ""))
+
+        check_for_type_support(Image)
+        self.bridge = CvBridge()
 
     async def iteration(self) -> None:
         # in order to wait on multiple input streams use:
@@ -56,14 +66,14 @@ class OperatorQRDetector(Operator):
                     data = obj_decoded.data.decode('utf-8')
                     qr_codes.append(QRCode(points, data, [img_width, img_height]))
 
-        #FIXME: visualization sometimes crashes:
         if self.display_gui:
             if code_found:
                 print("code/s found")
                 for qr_code in qr_codes: #draw bounding boxes info decoded from QR codes:
                     dec_img = qr_code.draw_bbox(dec_img, (0, 255, 0), (0, 0, 255))
-            cv2.imshow("Zenoh python QR code detector", dec_img)
-            cv2.waitKey(10)
+            img_msg = self.bridge.cv2_to_imgmsg(dec_img, encoding='rgb8')
+            ser_msg = _rclpy.rclpy_serialize(img_msg, type(img_msg))
+            await self.img_debug_output.send(ser_msg)
 
         #select the only biggest QR code matching:
         qr_code_to_track = get_biggest_qr_code_matching(qr_codes, self.qr_data_to_track)
@@ -80,7 +90,6 @@ class OperatorQRDetector(Operator):
         return None
 
     def finalize(self) -> None:
-        cv2.destroyAllWindows()
         return None
 
 

@@ -7,5 +7,5 @@ configuration:
   qr_data_to_track: "https://github.com/USanz/follow_beacon"
 
 inputs: [Image]
-outputs: [QR_Data]
+outputs: [QR_Data, Debug_Image]
 tags: []
