@@ -3,10 +3,6 @@ flow: qr_follower
 vars:
   BASE_DIR_PATH: file:///home/usanz/zs_t3/t3_ws/src/follow_beacon/src/zenoh-flow_nodes
 
-#configuration:
-#  locator: 'tcp/127.0.0.1:7447'
-#  mode: client
-
 sources:
   - id : source_image
     descriptor : "{{ BASE_DIR_PATH }}/source_image_robot.yml"

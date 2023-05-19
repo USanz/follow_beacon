@@ -44,13 +44,13 @@ class OperatorDriver(Operator):
         message = struct.unpack('%sf' % array_length, data_msg.data) # bytes to tuple
         print(f"Received {message}")
 
-        qr_x, qr_y, qr_avg_diag_size = message
+        qr_x, _qr_y, qr_avg_diag_size = message
         cmd_vel_msg = get_twist_msg()
 
         error_x_dist = self.goal_x_dist - qr_x
-        wanted_w = self.kp_w * error_x_dist #angular vel.
+        wanted_w = self.kp_w * error_x_dist # Angular vel.
         error_pix_diag = self.goal_pix_diag - qr_avg_diag_size
-        wanted_v = self.kp_v * error_pix_diag #linear vel.
+        wanted_v = self.kp_v * error_pix_diag # Linear vel.
         
         if not self.only_display_mode:
             if qr_avg_diag_size > 0:
@@ -59,7 +59,7 @@ class OperatorDriver(Operator):
                     cmd_vel_msg.linear.x = wanted_v
                 if (abs(error_x_dist) >= self.goal_x_threshold):
                     cmd_vel_msg.angular.z = wanted_w
-                self.target_lost_ts = get_time_ms() #reset time
+                self.target_lost_ts = get_time_ms() # Reset time
             else:
                 new_ts = get_time_ms()
                 if (new_ts - self.target_lost_ts >= self.target_lost_timeout):
@@ -76,19 +76,9 @@ class OperatorDriver(Operator):
     def finalize(self):
         return None
 
-    async def publish(self, cmd_vel_msg):
-        ser_msg = _rclpy.rclpy_serialize(cmd_vel_msg, type(cmd_vel_msg))
-        #pub.put(ser_msg)
-        await self.output.send(ser_msg)
-
-    def stop_robot(self):
-        cmd_vel_msg = get_twist_msg()
-        print("stoping robot...")
-        self.publish(cmd_vel_msg)
-
 
 def get_time_ms():
-    return time.time() * 1e3 # get the number of milliseconds after epoch.
+    return time.time() * 1e3 # Get the number of milliseconds after epoch.
 
 def get_twist_msg(init_vels = []):
     twist_msg = Twist()
@@ -99,7 +89,7 @@ def get_twist_msg(init_vels = []):
     twist_msg.angular.y = 0.0
     twist_msg.angular.z = 0.0
 
-    if len(init_vels) == 6: # unwrap
+    if len(init_vels) == 6: # Unwrap
         twist_msg.linear.x, twist_msg.linear.y,
         twist_msg.linear.z, twist_msg.angular.x,
         twist_msg.angular.y, twist_msg.angular.z = init_vels

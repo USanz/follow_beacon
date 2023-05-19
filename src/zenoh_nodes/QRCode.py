@@ -6,9 +6,9 @@ def calc_centroid(points):
     return [centroid_x, centroid_y]
 
 def calc_diag_size(points):
-    if len(points) != 4: # if it's not squared
+    if len(points) != 4: # If it's not squared
         return None
-    #euclidean distance:
+    # Euclidean distance:
     diag02 = np.linalg.norm(points[0] - points[2])
     diag13 = np.linalg.norm(points[1] - points[3])
     return (diag02 + diag13) / 2.0

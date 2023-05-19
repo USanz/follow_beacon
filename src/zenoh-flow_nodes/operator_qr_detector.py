@@ -40,15 +40,15 @@ class OperatorQRDetector(Operator):
         self.bridge = CvBridge()
 
     async def iteration(self) -> None:
-        # in order to wait on multiple input streams use:
+        # In order to wait on multiple input streams use:
         # https://docs.python.org/3/library/asyncio-task.html#asyncio.gather
         # or
         # https://docs.python.org/3/library/asyncio-task.html#asyncio.wait
         data_msg = await self.input.recv()
         dec_img = img_from_bytes(data_msg.data)
         
-        #detect the QR codes:
-        img_height, img_width, img_channels = dec_img.shape
+        # Detect the QR codes:
+        img_height, img_width, _img_channels = dec_img.shape
         code_found = False
         qr_codes = list()
         if self.detector == "opencv":
@@ -69,22 +69,22 @@ class OperatorQRDetector(Operator):
         if self.display_gui:
             if code_found:
                 print("code/s found")
-                for qr_code in qr_codes: #draw bounding boxes info decoded from QR codes:
+                for qr_code in qr_codes: # Draw bounding boxes info decoded from QR codes:
                     dec_img = qr_code.draw_bbox(dec_img, (0, 255, 0), (0, 0, 255))
             img_msg = self.bridge.cv2_to_imgmsg(dec_img, encoding='rgb8')
             ser_msg = _rclpy.rclpy_serialize(img_msg, type(img_msg))
             await self.img_debug_output.send(ser_msg)
 
-        #select the only biggest QR code matching:
+        # Select the only biggest QR code matching:
         qr_code_to_track = get_biggest_qr_code_matching(qr_codes, self.qr_data_to_track)
 
-        #the mesage is a list of floats (x_pos, y_pos, diag_size):
+        # The mesage is a list of floats (x_pos, y_pos, diag_size):
         qr_msg = [0.0, 0.0, -1.0]
         if qr_code_to_track != None:
             qr_msg = qr_code_to_track.get_centroid_rel()
             qr_msg.append(qr_code_to_track.get_diag_avg_size())
         
-        #serialize ans send
+        # Serialize ans send
         buf = struct.pack('%sf' % len(qr_msg), *qr_msg)
         await self.output.send(buf)
         return None
@@ -101,15 +101,6 @@ def get_biggest_qr_code_matching(qr_codes, data):
         if (biggest_code == None or qr_code > biggest_code) and qr_code.data_matches(data):
             biggest_code = qr_code
     return biggest_code
-
-#def int_to_bytes(x: int) -> bytes:
-#    return x.to_bytes((x.bit_length() + 7) // 8, "big")
-
-#def int_from_bytes(xbytes: bytes) -> int:
-#    return int.from_bytes(xbytes, "big")
-
-#def str_to_bytes(string: str) -> bytes:
-#    return bytes(string, 'utf-8')
 
 def img_from_bytes(xbytes: bytes) -> np.ndarray:
     enc_img = np.frombuffer(xbytes, dtype=np.uint8)

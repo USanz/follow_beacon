@@ -4,8 +4,8 @@ from zenoh_flow.types import Context
 from typing import Any, Dict
 import asyncio
 import cv2
-#from numpy import ndarray, empty, int8
 import numpy as np
+
 
 
 class SourceImage(Source):
@@ -24,25 +24,23 @@ class SourceImage(Source):
         self.cam_num = int(configuration.get("cam_num", 0))
         self.camera = cv2.VideoCapture(self.cam_num)
         if (not self.camera.isOpened()):
-            print("Error opening video stream or file")
-            return None
-            #TODO: is there any way to output an error and exit in zenoh-flow API?
+            raise Exception("Error opening video stream or file")
 
     def produce_data(self) -> bytes:
-        #get frame:
+        # Get frame:
         frame_grabbed, frame = self.camera.read()
 
         if not frame_grabbed:
             return bytes()
         
-        #resize it
+        # Resize it
         if self.img_resize_size:
             resized_frame = cv2.resize(frame, self.img_resize_size, interpolation = cv2.INTER_AREA)
         else:
             resized_frame = frame
-        #compress it
+        # Compress it
         compressed_frame = img_compress(resized_frame, '.jpg', self.quality)
-        #serialize it
+        # Serialize it
         return compressed_frame.tobytes()
 
     async def iteration(self) -> None:
@@ -52,9 +50,10 @@ class SourceImage(Source):
             await self.output.send(img)
         return None
 
-    def finalize(self) -> None: #This is bugged for the moment (it doesn't see the self attributes).
+    def finalize(self) -> None:
         self.camera.release()
         return None
+
 
 def img_compress(img: np.ndarray, format: str, quality: int) -> np.ndarray:
     encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), int(quality)]

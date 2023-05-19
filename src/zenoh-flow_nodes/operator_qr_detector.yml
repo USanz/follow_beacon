@@ -3,7 +3,7 @@ uri: file:///home/usanz/zs_t3/t3_ws/src/follow_beacon/src/zenoh-flow_nodes/opera
 
 configuration:
   display_gui: false
-  qr_code_detector: "zbar" # choose between "zbar" or "opencv"
+  qr_code_detector: "zbar" # Choose between "zbar" or "opencv"
   qr_data_to_track: "https://github.com/USanz/follow_beacon"
 
 inputs: [Image]
